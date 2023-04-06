@@ -3,9 +3,11 @@ Transform operation list
 """
 
 import math
+from typing import Optional
 
 from mindspore.dataset import vision
 from mindspore.dataset.vision import Inter
+from mindspore.dataset.transforms import Compose
 
 from .auto_augment import (
     augment_and_mix_transform,
@@ -14,9 +16,11 @@ from .auto_augment import (
     trivial_augment_wide_transform,
 )
 from .constants import DEFAULT_CROP_PCT, IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+from .mask_generator import BlockWiseMaskGenerator, PatchAlignedMaskGenerator
 
 __all__ = [
     "create_transforms",
+    "create_transforms_pretrain"
 ]
 
 
@@ -221,3 +225,180 @@ def create_transforms(
         raise NotImplementedError(
             f"Only supports creating transforms for ['imagenet'] datasets, but got {dataset_name}."
         )
+
+
+class RandomResizedCropWithTwoResolution:
+    def __init__(self,
+        first_size,
+        second_size,
+        first_interpolation,
+        second_interpolation, # lanczos is not implemented in MindSpore
+        scale,
+        ratio
+    ):
+        self.first_transform = vision.RandomResizedCrop(first_size, scale, ratio, first_interpolation)
+        self.second_transform = vision.RandomResizedCrop(second_size, scale, ratio, second_interpolation)
+
+    def __call__(self, img):
+        return self.first_transform(img), self.second_transform(img)
+
+
+class TransformsForPretrain:
+    def __init__(
+        self,
+        first_resize=224,
+        second_resize: Optional[int] = None,
+        tokenizer_type: str = "dall-e",
+        mask_type: str = "block-wise",
+        scale=(0.08, 1.0),
+        ratio=(0.75, 1.333),
+        hflip=0.5,
+        color_jitter=None,
+        first_interpolation="bicubic",
+        second_interpolation="bilinear", # lanczos is not implemented is MindSpore
+        mean=IMAGENET_DEFAULT_MEAN,
+        std=IMAGENET_DEFAULT_STD,
+        **kwargs
+    ):
+        if hasattr(Inter, first_interpolation.upper()):
+            first_interpolation = getattr(Inter, first_interpolation.upper())
+        else:
+            first_interpolation = Inter.BILINEAR
+            
+        if second_resize is not None:
+            common_transform = [
+                vision.Decode()
+            ]
+            if color_jitter is not None:
+                if isinstance(color_jitter, (list, tuple)):
+                    # color jitter shoulf be a 3-tuple/list for brightness/contrast/saturation
+                    # or 4 if also augmenting hue
+                    assert len(color_jitter) in (3, 4)
+                else:
+                    color_jitter = (float(color_jitter),) * 3
+                common_transform += [vision.RandomColorAdjust(*color_jitter)]
+
+            if hflip > 0.0:
+                common_transform += [vision.RandomHorizontalFlip(prob=hflip)]
+
+            if hasattr(Inter, second_interpolation.upper()):
+                second_interpolation = getattr(Inter, second_interpolation.upper())
+            else:
+                second_interpolation = Inter.BILINEAR
+            
+            common_transform += [RandomResizedCropWithTwoResolution(
+                                    first_resize, second_resize,
+                                    first_interpolation, second_interpolation,
+                                    scale, ratio
+                                )]
+            self.common_transform = Compose(common_transform)
+
+            self.patch_transform = Compose([
+                vision.Normalize(mean=mean, std=std),
+                vision.HWC2CHW()
+            ])
+
+            if tokenizer_type == "dall-e": # beit
+                self.visual_token_transform = Compose([
+                    vision.ToTensor(),
+                    lambda x: (1 - 2 * 0.1) * x + 0.1
+                ])
+            elif tokenizer_type == "vqkd": # beit v2
+                self.visual_token_transform = Compose([
+                    vision.ToTensor()
+                ])
+            elif tokenizer_type == "clip": # eva, eva-02
+                self.visual_token_transform = Compose([
+                    vision.ToTensor(),
+                    vision.Normalize(
+                        mean=(0.48145466, 0.4578275, 0.40821073),
+                        std=(0.26862954, 0.26130258, 0.27577711),
+                        is_hwc=False
+                    )
+                ])
+
+            if mask_type == "block-wise": # beit, beit v2, eva, eva-02
+                self.masked_position_generator = BlockWiseMaskGenerator(
+                    window_size=kwargs["window_size"],
+                    num_masking_patches=kwargs["num_mask_patches"],
+                    max_num_patches=kwargs["max_num_patches"],
+                    min_num_patches=kwargs["min_num_patches"]
+                )
+            elif mask_type == "patch-aligned": # SimMIM
+                self.masked_position_generator = PatchAlignedMaskGenerator(
+                    input_size=first_resize,
+                    mask_patch_size=kwargs["mask_patch_size"],
+                    model_patch_size=kwargs["model_patch_size"],
+                    mask_ratio=kwargs["mask_ratio"]
+                )
+            else:
+                raise NotImplementedError()
+
+            self.output_columns = ["patch", "token", "mask"]
+        else:
+            patch_transform = [
+                vision.RandomCropDecodeResize(
+                    size=first_resize,
+                    scale=scale,
+                    ratio=ratio,
+                    interpolation=first_interpolation
+                )
+            ]
+
+            if hflip > 0.0:
+                patch_transform += [vision.RandomHorizontalFlip(hflip)]
+
+            patch_transform += [
+                vision.Normalize(mean=mean, std=std),
+                vision.HWC2CHW()
+            ]
+            self.patch_transform = Compose(patch_transform)
+            
+            if mask_type == "block-wise": # beit, beit v2, eva, eva-02
+                self.masked_position_generator = BlockWiseMaskGenerator(
+                    window_size=kwargs["window_size"],
+                    num_masking_patches=kwargs["num_mask_patches"],
+                    max_num_patches=kwargs["max_num_patches"],
+                    min_num_patches=kwargs["min_num_patches"]
+                )
+                self.output_columns = ["patch", "mask"]
+            elif mask_type == "patch-aligned": # SimMIM
+                self.masked_position_generator = PatchAlignedMaskGenerator(
+                    input_size=first_resize,
+                    mask_patch_size=kwargs["mask_patch_size"],
+                    model_patch_size=kwargs["model_patch_size"],
+                    mask_ratio=kwargs["mask_ratio"]
+                )
+                self.output_columns = ["patch", "mask"]
+            elif mask_type == "none":
+                self.masked_position_generator = None
+                self.output_columns = ["patch"]
+            else:
+                raise NotImplementedError()
+
+    def __call__(self, image):
+        if self.common_transform is not None: # for beit, beit v2, eva, eva-02
+            patches, visual_tokens = self.common_transform(image)
+            patches = self.patch_transform(patches)
+            visual_tokens = self.visual_token_transform(visual_tokens)
+            masks = self.masked_position_generator()
+            return patches, visual_tokens, masks
+        else:
+            patches = self.patch_transform(image)
+            if self.masked_position_generator is not None: # for SimMIM
+                masks = self.masked_position_generator()
+                return patches, masks
+            else: # for MAE
+                return patches
+
+
+def create_transforms_pretrain(
+    dataset_name="",
+    image_resize=224,
+    **kwargs
+):
+    if dataset_name in ("imagenet", ""):
+        trans_args = dict(first_resize=image_resize, **kwargs)
+        return TransformsForPretrain(**trans_args)
+    else:
+        raise NotImplementedError()

@@ -13,7 +13,10 @@ from mindspore.dataset import transforms
 from .mixup import Mixup
 from .transforms_factory import create_transforms
 
-__all__ = ["create_loader"]
+__all__ = [
+    "create_loader",
+    "create_loader_pretrain"
+]
 
 
 def create_loader(
@@ -218,3 +221,4 @@ def concat_per_batch_map(image_clean, image_aug1, image_aug2, label):
     image = np.concatenate((image_clean, image_aug1, image_aug2))
     label = np.concatenate((label, label, label))
     return image, label
+

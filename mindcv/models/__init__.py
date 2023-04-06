@@ -1,5 +1,6 @@
 """models init"""
 from . import (
+    beit,
     bit,
     cait,
     cmt,
@@ -54,6 +55,7 @@ from . import (
     xception,
     xcit,
 )
+from .beit import *
 from .bit import *
 from .cait import *
 from .cmt import *
@@ -112,6 +114,7 @@ from .xcit import *
 # some net module is replaced by the net function with the same name when we do from .net import *
 # we cannot use net.__all__, so we manually copy net.__all__ here.
 __all__ = []
+__all__.extend(beit.__all__)
 __all__.extend(bit.__all__)
 __all__.extend(cait.__all__)
 __all__.extend(cmt.__all__)

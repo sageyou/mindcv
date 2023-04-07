@@ -2,7 +2,7 @@ import logging
 from typing import Optional, Union
 
 import mindspore as ms
-from mindspore import Tensor, context
+from mindspore import Tensor, context, nn, ops
 from mindspore import dtype as mstype
 from mindspore import nn
 from mindspore.ops import functional as F
@@ -15,6 +15,7 @@ __all__ = [
     "get_metrics",
     "require_customized_train_step",
     "create_trainer",
+    "create_trainer_pretrain"
 ]
 
 _logger = logging.getLogger(__name__)
@@ -184,4 +185,77 @@ def create_trainer(
         train_step_cell = TrainStep(**train_step_kwargs).set_train()
         model = Model(train_step_cell, eval_network=eval_network, metrics=metrics, eval_indexes=[0, 1, 2])
         # todo: do we need to set model._loss_scale_manager
+    return model
+
+
+class WithLossCellForPretrain(nn.WithLossCell):
+    def __init__(
+        self,
+        network: nn.Cell,
+        teacher: nn.Cell,
+        loss: nn.Cell
+    ):
+        super(WithLossCellForPretrain, self).__init__(network, loss)
+        self.teacher = teacher
+
+    def construct(self, x1, x2, mask):
+        bsz = x1.shape[0]
+        mask = ops.reshape(mask, (bsz, -1)).astype(ms.bool_)
+        output = self._backbone(x1, mask)
+        label = self.teacher(x2, mask)
+        loss = self._loss_fn(output, label)
+        return loss
+
+
+def create_trainer_pretrain(
+    network: nn.Cell,
+    teacher: Optional[nn.Cell],
+    loss: Optional[nn.Cell],
+    optimizer: nn.Cell,
+    metrics: Union[dict, set],
+    amp_level: str,
+    loss_scale_type: str,
+    loss_scale: float = 1.0,
+    drop_overflow_update: bool = False,
+    ema: bool = False,
+    ema_decay: float = 0.9999,
+    clip_grad: bool = False,
+    clip_value: float = 15.0,
+):
+    if loss_scale < 1.0:
+        raise ValueError("Loss scale cannot be less than 1.0!")
+
+    if drop_overflow_update is False and loss_scale_type.lower() == "dynamic":
+        raise ValueError("DynamicLossScale ALWAYS drop overflow!")
+
+    if not _require_customized_train_step(ema, clip_grad):
+        if teacher is not None and loss is not None: # for beit, beit v2, eva, eva-02, else for MAE, SimMIM
+            network = WithLossCellForPretrain(network, teacher, loss)
+
+        mindspore_kwargs = dict(
+            network = network,
+            optimizer=optimizer,
+            amp_level=amp_level,
+        )
+    
+        if loss_scale_type.lower() == "fixed":
+            mindspore_kwargs["loss_scale_manager"] = FixedLossScaleManager(
+                loss_scale=loss_scale, drop_overflow_update=drop_overflow_update
+            )
+        elif loss_scale_type.lower() == "dynamic":
+            mindspore_kwargs["loss_scale_manager"] = DynamicLossScaleManager(
+                init_loss_scale=loss_scale, scale_factor=2, scale_window=2000
+            )
+        elif loss_scale_type.lower() == "auto":
+            # We don't explicitly construct LossScaleManager
+            _logger.warning(
+                "You are using AUTO loss scale, which means the LossScaleManager isn't explicitly pass in "
+                "when creating a mindspore.Model instance. "
+                "NOTE: mindspore.Model may use LossScaleManager silently. See mindspore.train.amp for details."
+            )
+        else:
+            raise ValueError(f"Loss scale type only support ['fixed', 'dynamic', 'auto'], but got{loss_scale_type}.")
+        model = Model(**mindspore_kwargs)
+    else:
+        raise NotImplementedError()
     return model

@@ -6,17 +6,20 @@ from typing import Optional, Tuple
 class BlockWiseMaskGenerator:
     def __init__(
         self,
-        window_size: int,
-        num_masking_patches: int,
+        input_size: int = 224,
+        model_patch_size: int = 16,
+        mask_ratio: float = 0.4,
         min_num_patches: int = 4,
         max_num_patches: Optional[int] = None,
         min_aspect: int = 0.3,
         max_aspect: Optional[int] = None
     ):
-        if not isinstance(window_size, tuple):
-            window_size = (window_size, ) * 2
-        self.height, self.width = window_size
+        assert input_size % model_patch_size == 0
 
+        grid_size = input_size // model_patch_size
+        self.height, self.width = (grid_size, grid_size)
+
+        num_masking_patches = int(np.ceil(grid_size ** 2 * mask_ratio))
         self.num_masking_patches = num_masking_patches
 
         self.min_num_patches = min_num_patches
@@ -71,10 +74,10 @@ class BlockWiseMaskGenerator:
 class PatchAlignedMaskGenerator:
     def __init__(
         self,
-        input_size=192,
-        mask_patch_size=32,
-        model_patch_size=4,
-        mask_ratio=0.6
+        input_size: int = 192,
+        mask_patch_size: int = 32,
+        model_patch_size: int = 4,
+        mask_ratio: float = 0.6
     ):
         self.input_size = input_size
         self.mask_patch_size = mask_patch_size

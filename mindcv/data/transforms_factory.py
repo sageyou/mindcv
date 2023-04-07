@@ -258,6 +258,8 @@ class TransformsForPretrain:
         second_interpolation="bilinear", # lanczos is not implemented is MindSpore
         mean=IMAGENET_DEFAULT_MEAN,
         std=IMAGENET_DEFAULT_STD,
+        patch_size: int = 16,
+        mask_ratio: float = 0.4,
         **kwargs
     ):
         if hasattr(Inter, first_interpolation.upper()):
@@ -298,7 +300,7 @@ class TransformsForPretrain:
                 vision.HWC2CHW()
             ])
 
-            if teacher_type == "dall-e": # beit
+            if teacher_type == "dall_e": # beit
                 self.visual_token_transform = Compose([
                     vision.ToTensor(),
                     lambda x: (1 - 2 * 0.1) * x + 0.1
@@ -319,17 +321,16 @@ class TransformsForPretrain:
 
             if mask_type == "block-wise": # beit, beit v2, eva, eva-02
                 self.masked_position_generator = BlockWiseMaskGenerator(
-                    window_size=kwargs["window_size"],
-                    num_masking_patches=kwargs["num_mask_patches"],
-                    max_num_patches=kwargs["max_num_patches"],
-                    min_num_patches=kwargs["min_num_patches"]
+                    input_size=first_resize,
+                    model_patch_size=patch_size,
+                    mask_ratio=mask_ratio,
                 )
             elif mask_type == "patch-aligned": # SimMIM
                 self.masked_position_generator = PatchAlignedMaskGenerator(
                     input_size=first_resize,
                     mask_patch_size=kwargs["mask_patch_size"],
-                    model_patch_size=kwargs["model_patch_size"],
-                    mask_ratio=kwargs["mask_ratio"]
+                    model_patch_size=patch_size,
+                    mask_ratio=mask_ratio
                 )
             else:
                 raise NotImplementedError()
@@ -358,18 +359,17 @@ class TransformsForPretrain:
             
             if mask_type == "block-wise": # beit, beit v2, eva, eva-02
                 self.masked_position_generator = BlockWiseMaskGenerator(
-                    window_size=kwargs["window_size"],
-                    num_masking_patches=kwargs["num_mask_patches"],
-                    max_num_patches=kwargs["max_num_patches"],
-                    min_num_patches=kwargs["min_num_patches"]
+                    input_size=first_resize,
+                    model_patch_size=patch_size,
+                    mask_ratio=mask_ratio,
                 )
                 self.output_columns = ["patch", "mask"]
             elif mask_type == "patch-aligned": # SimMIM
                 self.masked_position_generator = PatchAlignedMaskGenerator(
                     input_size=first_resize,
                     mask_patch_size=kwargs["mask_patch_size"],
-                    model_patch_size=kwargs["model_patch_size"],
-                    mask_ratio=kwargs["mask_ratio"]
+                    model_patch_size=patch_size,
+                    mask_ratio=mask_ratio,
                 )
                 self.output_columns = ["patch", "mask"]
             elif mask_type == "none":

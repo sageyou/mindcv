@@ -317,11 +317,11 @@ class VisionTransformerForMaskedImageModeling(nn.Cell):
         attn_drop_rate: float = 0.0,
         drop_path_rate: float = 0.0,
         norm_layer: Optional[nn.Cell] = None,
-        init_values: Optional[float] = None,
+        init_values: Optional[float] = 0.1,
         attn_head_dim: Optional[int] = None,
-        use_abs_pos_emb: bool = True,
+        use_abs_pos_emb: bool = False,
         use_rel_pos_bias: bool = False,
-        use_shared_rel_pos_bias: bool = False,
+        use_shared_rel_pos_bias: bool = True,
         init_std: float = 0.02,
         **kwargs
     ):
@@ -440,19 +440,12 @@ class VisionTransformerForMaskedImageModeling(nn.Cell):
 
 
 @register_model
-def dall_e(pretrained=True, **kwargs):
+def dall_e(pretrained=False, **kwargs):
     model = DVaeEncoder(
         group_count=4, n_hid=256, n_blk_per_group=2, input_channels=3, vocab_size=8192
     )
     if pretrained:
-        if kwargs["vae_ckpt"] is not None and os.path.exists(kwargs["vae_ckpt"]):
-            param_dict = ms.load_checkpoint(kwargs["vae_ckpt"])
-            param_not_load = ms.load_param_into_net(model, param_dict)
-            if len(param_not_load) == len(model.trainable_params()):
-                print(param_not_load)
-                raise ValueError
-        else:
-            raise ValueError(f'dvae ckpt is not existing.')
+        pass
     return model
 
 

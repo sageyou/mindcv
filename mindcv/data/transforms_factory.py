@@ -336,6 +336,8 @@ class TransformsForPretrain:
 
             self.output_columns = ["patch", "token", "mask"]
         else:
+            self.common_transform = None
+
             patch_transform = [
                 vision.RandomCropDecodeResize(
                     size=first_resize,

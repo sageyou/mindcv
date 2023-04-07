@@ -240,7 +240,7 @@ class TransformsForPretrain:
         self,
         first_resize=224,
         second_resize: Optional[int] = None,
-        tokenizer_type: str = "dall-e",
+        teacher_type: str = "dall-e",
         mask_type: str = "block-wise",
         scale=(0.08, 1.0),
         ratio=(0.75, 1.333),
@@ -290,16 +290,16 @@ class TransformsForPretrain:
                 vision.HWC2CHW()
             ])
 
-            if tokenizer_type == "dall-e": # beit
+            if teacher_type == "dall-e": # beit
                 self.visual_token_transform = Compose([
                     vision.ToTensor(),
                     lambda x: (1 - 2 * 0.1) * x + 0.1
                 ])
-            elif tokenizer_type == "vqkd": # beit v2
+            elif teacher_type == "vqkd": # beit v2
                 self.visual_token_transform = Compose([
                     vision.ToTensor()
                 ])
-            elif tokenizer_type == "clip": # eva, eva-02
+            elif teacher_type == "clip": # eva, eva-02
                 self.visual_token_transform = Compose([
                     vision.ToTensor(),
                     vision.Normalize(

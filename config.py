@@ -216,7 +216,7 @@ def create_parser():
 
     # Loss parameters
     group = parser.add_argument_group('Loss parameters')
-    group.add_argument('--loss', type=str, default='CE', choices=['BCE', 'CE'],
+    group.add_argument('--loss', type=str, default='CE', choices=['BCE', 'CE', 'None'],
                        help='Type of loss, BCE (BinaryCrossEntropy) or CE (CrossEntropy)  (default="CE")')
     group.add_argument('--label_smoothing', type=float, default=0.0,
                        help='Use label smoothing (default=0.0)')
@@ -253,6 +253,27 @@ def create_parser():
                        help='pre_train_model path in obs')
     group.add_argument('--train_url', type=str, default='/cache/output/',
                        help='model folder to save/load')
+
+    # pre-train
+    group = parser.add_argument_group('pre-train')
+    group.add_argument('--second_resize', type=int, default=112,
+                       help='Crop the size of the image for teacher model (default=112)')
+    group.add_argument('--second_interpolation', type=str, default='bilinear',
+                       help='Image interpolation mode for resize operator for teacher model (default="bilinear")')
+    group.add_argument('--teacher', type=str, default='dall_e',
+                       help='Name of teacher model for pre-train')
+    group.add_argument('--teacher_ckpt_path', type=str, default='',
+                       help='Initialize teacher model from this checkpoint')
+    group.add_argument('--vocab_size', type=int, default=8192,
+                       help='Vocabulary size of visual tokens')
+    group.add_argument('--patch_size', type=int, default=16,
+                       help='Size of patch')
+    group.add_argument('--mask_patch_size', type=int, default=32,
+                       help='Size of mask patch')
+    group.add_argument('--mask_type', type=str, default='block-wise',
+                       help='Type of mask generator')
+    group.add_argument('--mask_ratio', type=float, default=0.4,
+                       help='Masking ratio')
 
     return parser_config, parser
 # fmt: on

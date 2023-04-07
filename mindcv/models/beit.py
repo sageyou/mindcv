@@ -15,7 +15,9 @@ from .layers.patch_embed import PatchEmbed
 from .registry import register_model
 
 __all__ = [
-    'beit_base_patch16_224_8k_vocab'
+    "dall_e",
+    "beit_base_patch16_224_8k_vocab",
+    "beit_large_patch16_224_8k_vocab"
 ]
 
 class DVaeEncoderBlock(nn.Cell):
@@ -95,8 +97,17 @@ class DVaeEncoder(nn.Cell):
 			]))),
 		]))
 
-    def construct(self, x):
-        return self.blocks(x)
+        self.argmax = ops.Argmax(axis=1)
+        self.reshape = ops.Reshape()
+        self.masked_select = ops.MaskedSelect()
+
+    def construct(self, x, mask):
+        bsz = x.shape[0]
+        z_logits = self.blocks(x)
+        indices = self.argmax(z_logits)
+        indices = self.reshape(indices, (bsz, -1))
+        labels = self.masked_select(indices, mask)
+        return labels
 
 
 class RelativePositionBias(nn.Cell):
@@ -428,82 +439,38 @@ class VisionTransformerForMaskedImageModeling(nn.Cell):
             return self.lm_head(x)
 
 
-class BEiT(nn.Cell):
-    def __init__(
-        self,
-        group_count: int = 4,
-        vae_ckpt: Optional[str] = None,
-        img_size: int = 224,
-        patch_size: int = 16,
-        in_chans: int = 3,
-        vocab_size: int = 8192,
-        embed_dim: int = 768,
-        depth: int = 12,
-        num_heads: int = 12,
-        mlp_ratio: int = 4,
-        qkv_bias: bool = True,
-        qk_scale: Optional[float] = None,
-        drop_rate: float = 0.0,
-        attn_drop_rate: float = 0.0,
-        drop_path_rate: float = 0.1,
-        norm_layer: Optional[nn.Cell] = None,
-        init_values: Optional[float] = None,
-        attn_head_dim: Optional[int] = None,
-        use_abs_pos_emb: bool = False,
-        use_rel_pos_bias: bool = False,
-        use_shared_rel_pos_bias: bool = True,
-        init_std: float = 0.02,
-        **kwargs   
-    ):
-        super(BEiT, self).__init__()
-        encoder = DVaeEncoder(group_count=group_count, vocab_size=vocab_size)
-        if vae_ckpt is not None and os.path.exists(vae_ckpt):
-            param_dict = ms.load_checkpoint(vae_ckpt)
-            param_not_load = ms.load_param_into_net(encoder, param_dict)
-            if len(param_not_load) == len(encoder.trainable_params()):
+@register_model
+def dall_e(pretrained=True, **kwargs):
+    model = DVaeEncoder(
+        group_count=4, n_hid=256, n_blk_per_group=2, input_channels=3, vocab_size=8192
+    )
+    if pretrained:
+        if kwargs["vae_ckpt"] is not None and os.path.exists(kwargs["vae_ckpt"]):
+            param_dict = ms.load_checkpoint(kwargs["vae_ckpt"])
+            param_not_load = ms.load_param_into_net(model, param_dict)
+            if len(param_not_load) == len(model.trainable_params()):
                 print(param_not_load)
                 raise ValueError
         else:
             raise ValueError(f'dvae ckpt is not existing.')
-        encoder.set_grad(False)
-        self.dvae_encoder = encoder
-
-        self.vit = VisionTransformerForMaskedImageModeling(
-            img_size=img_size, patch_size=patch_size, in_chans=in_chans, vocab_size=vocab_size,
-            embed_dim=embed_dim, depth=depth, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias,
-            qk_scale=qk_scale, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate, drop_path_rate=drop_path_rate,
-            norm_layer=norm_layer, init_values=init_values, attn_head_dim=attn_head_dim,
-            use_abs_pos_emb=use_abs_pos_emb, use_rel_pos_bias=use_rel_pos_bias,
-            use_shared_rel_pos_bias=use_shared_rel_pos_bias, init_std=init_std
-        )
-
-        self.argmax = ops.Argmax(axis=1)
-        self.reshape = ops.Reshape()
-        self.masked_select = ops.MaskedSelect()
-
-    def get_codebook_indices(self, image):
-        z_logits = self.dvae_encoder(image)
-        indices = self.argmax(z_logits)
-        return indices
-
-    def get_vit_output(self, x, bool_mask_pos, return_all_token=False):
-        return self.vit(x, bool_mask_pos, return_all_token)
-
-    def construct(self, sample, image, mask):
-        bsz = sample.shape[0]
-        input_ids = self.get_codebook_indices(image)
-        input_ids = self.reshape(input_ids, (bsz, -1))
-        mask = self.reshape(mask, (bsz, -1)).astype(bool)
-        labels = self.masked_select(input_ids, mask)
-
-        outputs = self.get_vit_output(sample, mask)
-        return outputs, labels
+    return model
 
 
 @register_model
 def beit_base_patch16_224_8k_vocab(pretrained=False, **kwargs):
-    model = BEiT(
+    model = VisionTransformerForMaskedImageModeling(
         patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, epsilon=1e-6), vocab_size=8192, **kwargs
+    )
+    if pretrained:
+        pass
+    return model
+
+
+@register_model
+def beit_large_patch16_224_8k_vocab(pretrained=False, **kwargs):
+    model = VisionTransformerForMaskedImageModeling(
+        patch_size=16, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, epsilon=1e-6), vocab_size=8192, **kwargs
     )
     if pretrained:

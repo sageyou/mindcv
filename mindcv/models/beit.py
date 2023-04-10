@@ -101,12 +101,11 @@ class DVaeEncoder(nn.Cell):
         self.reshape = ops.Reshape()
         self.masked_select = ops.MaskedSelect()
 
-    def construct(self, x, mask):
+    def construct(self, x):
         bsz = x.shape[0]
         z_logits = self.blocks(x)
         indices = self.argmax(z_logits)
-        indices = self.reshape(indices, (bsz, -1))
-        labels = self.masked_select(indices, mask)
+        labels = self.reshape(indices, (bsz, -1))
         return labels
 
 
@@ -427,25 +426,22 @@ class VisionTransformerForMaskedImageModeling(nn.Cell):
         x = self.norm(x)
         return x
 
-    def construct(self, x, bool_masked_pos, return_all_tokens=False):
+    def construct(self, x, bool_masked_pos):
         x = self.forward_features(x, bool_masked_pos)
         x = x[:, 1:]
-        if return_all_tokens:
-            return self.lm_head(x)
-        else:
-            emb_dim = x.shape[2]
-            x = ops.masked_select(x, ops.expand_dims(bool_masked_pos, -1))
-            x = ops.reshape(x, (-1, emb_dim))
-            return self.lm_head(x)
+        return self.lm_head(x)
 
 
 @register_model
-def dall_e(pretrained=False, **kwargs):
+def dall_e(pretrained=False, freeze=True, **kwargs):
     model = DVaeEncoder(
         group_count=4, n_hid=256, n_blk_per_group=2, input_channels=3, vocab_size=8192
     )
     if pretrained:
         pass
+    if freeze:
+        for param in model.trainable_params():
+            param.requires_grad = False
     return model
 
 

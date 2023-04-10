@@ -200,9 +200,14 @@ class WithLossCellForPretrain(nn.WithLossCell):
 
     def construct(self, x1, x2, mask):
         bsz = x1.shape[0]
-        mask = ops.reshape(mask, (bsz, -1)).astype(ms.bool_)
+        mask = ops.reshape(mask, (bsz, -1))
         output = self._backbone(x1, mask)
-        label = self.teacher(x2, mask)
+        output = ops.transpose(output, (0, 2, 1))
+
+        label = self.teacher(x2)
+        bool_mask = (1 - mask).astype(ms.bool_)
+        label = ops.masked_fill(label, bool_mask, value=-100)
+
         loss = self._loss_fn(output, label)
         return loss
 

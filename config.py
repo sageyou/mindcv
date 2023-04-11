@@ -272,14 +272,14 @@ def create_parser():
 
     # pre-train
     group = parser.add_argument_group('pre-train')
-    group.add_argument('--second_resize', type=int, default=112,
-                       help='Crop the size of the image for teacher model (default=112)')
+    group.add_argument('--second_resize', type=int, default=None,
+                       help='Crop the size of the image for tokenizer model (default=None)')
     group.add_argument('--second_interpolation', type=str, default='bilinear',
-                       help='Image interpolation mode for resize operator for teacher model (default="bilinear")')
-    group.add_argument('--teacher', type=str, default='dall_e',
-                       help='Name of teacher model for pre-train')
-    group.add_argument('--teacher_ckpt_path', type=str, default='',
-                       help='Initialize teacher model from this checkpoint')
+                       help='Image interpolation mode for resize operator for tokenizer model (default="bilinear")')
+    group.add_argument('--tokenizer', type=str, default='dall_e',
+                       help='Name of tokenizer model for pre-train')
+    group.add_argument('--tokenizer_ckpt_path', type=str, default='',
+                       help='Initialize tokenizer model from this checkpoint')
     group.add_argument('--vocab_size', type=int, default=8192,
                        help='Vocabulary size of visual tokens')
     group.add_argument('--patch_size', type=int, default=16,

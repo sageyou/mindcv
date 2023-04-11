@@ -192,11 +192,11 @@ class WithLossCellForPretrain(nn.WithLossCell):
     def __init__(
         self,
         network: nn.Cell,
-        teacher: nn.Cell,
+        tokenizer: nn.Cell,
         loss: nn.Cell
     ):
         super(WithLossCellForPretrain, self).__init__(network, loss)
-        self.teacher = teacher
+        self.tokenizer = tokenizer
 
     def construct(self, x1, x2, mask):
         bsz = x1.shape[0]
@@ -204,7 +204,7 @@ class WithLossCellForPretrain(nn.WithLossCell):
         output = self._backbone(x1, mask)
         output = ops.transpose(output, (0, 2, 1))
 
-        label = self.teacher(x2)
+        label = self.tokenizer(x2)
         bool_mask = (1 - mask).astype(ms.bool_)
         label = ops.masked_fill(label, bool_mask, value=-100)
 
@@ -214,7 +214,7 @@ class WithLossCellForPretrain(nn.WithLossCell):
 
 def create_trainer_pretrain(
     network: nn.Cell,
-    teacher: Optional[nn.Cell],
+    tokenizer: Optional[nn.Cell],
     loss: Optional[nn.Cell],
     optimizer: nn.Cell,
     metrics: Union[dict, set],
@@ -234,8 +234,8 @@ def create_trainer_pretrain(
         raise ValueError("DynamicLossScale ALWAYS drop overflow!")
 
     if not _require_customized_train_step(ema, clip_grad):
-        if teacher is not None and loss is not None: # for beit, beit v2, eva, eva-02, else for MAE, SimMIM
-            network = WithLossCellForPretrain(network, teacher, loss)
+        if tokenizer is not None and loss is not None: # for beit, beit v2, eva, eva-02, else for MAE, SimMIM
+            network = WithLossCellForPretrain(network, tokenizer, loss)
 
         mindspore_kwargs = dict(
             network = network,

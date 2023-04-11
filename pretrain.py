@@ -63,13 +63,12 @@ def train(args):
         dataset_name=args.dataset,
         image_resize=args.image_resize,
         second_resize=args.second_resize,
-        teacher_type=args.teacher,
+        tokenizer=args.tokenizer,
         scale=args.scale,
         ratio=args.ratio,
         hflip=args.hflip,
         color_jitter=args.color_jitter,
-        first_interpolation=args.interpolation,
-        second_interpolation=args.second_interpolation,
+        interpolations=[args.interpolation, args.second_interpolation],
         mean=args.mean,
         std=args.std,
         model_patch_size=args.patch_size,
@@ -107,13 +106,13 @@ def train(args):
         ema=args.ema,
     )
 
-    if args.teacher is not None:
-        teacher = create_model(
-            model_name=args.teacher,
-            checkpoint_path=args.teacher_ckpt_path
+    if args.tokenizer is not None:
+        tokenizer = create_model(
+            model_name=args.tokenizer,
+            checkpoint_path=args.tokenizer_ckpt_path
         )
     else:
-        teacher = None
+        tokenizer = None
 
     num_params = sum([param.size for param in network.get_parameters()])
 
@@ -176,7 +175,7 @@ def train(args):
     # create trainer
     trainer = create_trainer_pretrain(
         network,
-        teacher,
+        tokenizer,
         loss,
         optimizer,
         metrics,

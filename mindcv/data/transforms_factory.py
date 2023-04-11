@@ -3,7 +3,7 @@ Transform operation list
 """
 
 import math
-from typing import Optional
+from typing import Optional, List, Tuple, Union
 
 from mindspore.dataset import vision
 from mindspore.dataset.vision import Inter
@@ -229,15 +229,14 @@ def create_transforms(
 
 class RandomResizedCropWithTwoResolution:
     def __init__(self,
-        first_size,
-        second_size,
-        first_interpolation,
-        second_interpolation, # lanczos is not implemented in MindSpore
-        scale,
-        ratio
+        first_size: int,
+        second_size: int,
+        interpolations: Union[List, Tuple],
+        scale=(0.08, 1.0),
+        ratio=(0.75, 1.333)
     ):
-        self.first_transform = vision.RandomResizedCrop(first_size, scale, ratio, first_interpolation)
-        self.second_transform = vision.RandomResizedCrop(second_size, scale, ratio, second_interpolation)
+        self.first_transform = vision.RandomResizedCrop(first_size, scale, ratio, interpolations[0])
+        self.second_transform = vision.RandomResizedCrop(second_size, scale, ratio, interpolations[1])
 
     def __call__(self, img):
         return self.first_transform(img), self.second_transform(img)
@@ -246,26 +245,26 @@ class RandomResizedCropWithTwoResolution:
 class TransformsForPretrain:
     def __init__(
         self,
-        first_resize=224,
+        first_resize: int = 224,
         second_resize: Optional[int] = None,
-        teacher_type: str = "dall-e",
+        tokenizer: str = "dall-e",
         mask_type: str = "block-wise",
         scale=(0.08, 1.0),
         ratio=(0.75, 1.333),
         hflip=0.5,
         color_jitter=None,
-        first_interpolation="bicubic",
-        second_interpolation="bilinear", # lanczos is not implemented is MindSpore
+        interpolations: Union[List, Tuple] = ["bicubic", "bilinear"], # lanczos is not implemented in MindSpore
         mean=IMAGENET_DEFAULT_MEAN,
         std=IMAGENET_DEFAULT_STD,
         patch_size: int = 16,
         mask_ratio: float = 0.4,
         **kwargs
     ):
-        if hasattr(Inter, first_interpolation.upper()):
-            first_interpolation = getattr(Inter, first_interpolation.upper())
-        else:
-            first_interpolation = Inter.BILINEAR
+        for i in range(len(interpolations)):
+            if hasattr(Inter, interpolations[i].upper()):
+                interpolations[i] = getattr(Inter, interpolations[i].upper())
+            else:
+                interpolations[i] = Inter.BILINEAR
             
         if second_resize is not None:
             common_transform = [
@@ -283,15 +282,9 @@ class TransformsForPretrain:
             if hflip > 0.0:
                 common_transform += [vision.RandomHorizontalFlip(prob=hflip)]
 
-            if hasattr(Inter, second_interpolation.upper()):
-                second_interpolation = getattr(Inter, second_interpolation.upper())
-            else:
-                second_interpolation = Inter.BILINEAR
-            
             common_transform += [RandomResizedCropWithTwoResolution(
                                     first_resize, second_resize,
-                                    first_interpolation, second_interpolation,
-                                    scale, ratio
+                                    interpolations, scale, ratio
                                 )]
             self.common_transform = Compose(common_transform)
 
@@ -300,16 +293,16 @@ class TransformsForPretrain:
                 vision.HWC2CHW()
             ])
 
-            if teacher_type == "dall_e": # beit
+            if tokenizer == "dall_e": # beit
                 self.visual_token_transform = Compose([
                     vision.ToTensor(),
                     lambda x: (1 - 2 * 0.1) * x + 0.1
                 ])
-            elif teacher_type == "vqkd": # beit v2
+            elif tokenizer == "vqkd": # beit v2
                 self.visual_token_transform = Compose([
                     vision.ToTensor()
                 ])
-            elif teacher_type == "clip": # eva, eva-02
+            elif tokenizer == "clip": # eva, eva-02
                 self.visual_token_transform = Compose([
                     vision.ToTensor(),
                     vision.Normalize(
@@ -344,7 +337,7 @@ class TransformsForPretrain:
                     size=first_resize,
                     scale=scale,
                     ratio=ratio,
-                    interpolation=first_interpolation
+                    interpolation=interpolations[0]
                 )
             ]
 

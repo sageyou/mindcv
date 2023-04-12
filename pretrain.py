@@ -208,7 +208,7 @@ def train(args):
         summary_dir=summary_dir,
         dataset_val=loader_eval,
         val_interval=args.val_interval,
-        metric_name=["None"],
+        metric_name=[],
         ckpt_dir=args.ckpt_save_dir,
         ckpt_save_interval=args.ckpt_save_interval,
         best_ckpt_name=args.model + "_best.ckpt",

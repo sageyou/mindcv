@@ -13,10 +13,7 @@ from mindspore.dataset import transforms
 from .mixup import Mixup
 from .transforms_factory import create_transforms
 
-__all__ = [
-    "create_loader",
-    "create_loader_pretrain"
-]
+__all__ = ["create_loader"]
 
 
 def create_loader(

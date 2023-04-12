@@ -272,24 +272,23 @@ def create_parser():
 
     # pre-train
     group = parser.add_argument_group('pre-train')
-    group.add_argument('--second_resize', type=int, default=None,
-                       help='Crop the size of the image for tokenizer model (default=None)')
-    group.add_argument('--second_interpolation', type=str, default='bilinear',
-                       help='Image interpolation mode for resize operator for tokenizer model (default="bilinear")')
+    group.add_argument('--pretrain_resize', type=list, default=[224, 112],
+                       help='Crop the size of the image for pre-training.'
+                            'The length of list should be 2 if tokenizer is required. (default=[224])')
+    group.add_argument('--pretrain_interpolations', type=list, default=['bicubic', 'bilinear'],
+                       help='Image interpolation mode for resize operator for pre-trainin')
     group.add_argument('--tokenizer', type=str, default='dall_e',
                        help='Name of tokenizer model for pre-train')
     group.add_argument('--tokenizer_ckpt_path', type=str, default='',
                        help='Initialize tokenizer model from this checkpoint')
     group.add_argument('--vocab_size', type=int, default=8192,
                        help='Vocabulary size of visual tokens')
-    group.add_argument('--patch_size', type=int, default=16,
-                       help='Size of patch')
-    group.add_argument('--mask_patch_size', type=int, default=32,
-                       help='Size of mask patch')
     group.add_argument('--mask_type', type=str, default='block-wise',
                        help='Type of mask generator')
     group.add_argument('--mask_ratio', type=float, default=0.4,
                        help='Masking ratio')
+    group.add_argument('--mask_patch_size', type=int, default=32,
+                       help='Size of mask patch')
 
     return parser_config, parser
 # fmt: on

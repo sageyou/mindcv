@@ -11,7 +11,7 @@ from mindcv.loss import create_loss
 from mindcv.models import create_model
 from mindcv.optim import create_optimizer
 from mindcv.scheduler import create_scheduler
-from mindcv.utils import AllReduceSum, StateMonitor, create_trainer_pretrain, get_metrics, set_seed
+from mindcv.utils import AllReduceSum, StateMonitor, create_trainer, get_metrics, set_seed
 
 from config import parse_args  # isort: skip
 
@@ -59,22 +59,22 @@ def train(args):
     )
 
     # create transforms
+    patch_size = int(args.model.split('_')[2]) # need to be more robust
     transform_list = create_transforms_pretrain(
         dataset_name=args.dataset,
-        image_resize=args.image_resize,
-        second_resize=args.second_resize,
+        resize_list=args.pretrain_resize,
         tokenizer=args.tokenizer,
         scale=args.scale,
         ratio=args.ratio,
         hflip=args.hflip,
         color_jitter=args.color_jitter,
-        interpolations=[args.interpolation, args.second_interpolation],
+        interpolations=args.pretrain_interpolations,
         mean=args.mean,
         std=args.std,
-        model_patch_size=args.patch_size,
-        mask_patch_size=args.mask_patch_size,
         mask_type=args.mask_type,
         mask_ratio=args.mask_ratio,
+        model_patch_size=patch_size,
+        mask_patch_size=args.mask_patch_size,
     )
 
     # load dataset
@@ -170,12 +170,11 @@ def train(args):
     )
 
     # Define eval metrics.
-    metrics = get_metrics(args.vocab_size)
+    metrics = None
 
     # create trainer
-    trainer = create_trainer_pretrain(
+    trainer = create_trainer(
         network,
-        tokenizer,
         loss,
         optimizer,
         metrics,
@@ -187,6 +186,7 @@ def train(args):
         ema_decay=args.ema_decay,
         clip_grad=args.clip_grad,
         clip_value=args.clip_value,
+        tokenizer=tokenizer
     )
 
     # callback
@@ -208,7 +208,7 @@ def train(args):
         summary_dir=summary_dir,
         dataset_val=loader_eval,
         val_interval=args.val_interval,
-        metric_name=list(metrics.keys()),
+        metric_name=["None"],
         ckpt_dir=args.ckpt_save_dir,
         ckpt_save_interval=args.ckpt_save_interval,
         best_ckpt_name=args.model + "_best.ckpt",

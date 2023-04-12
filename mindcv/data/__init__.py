@@ -1,16 +1,20 @@
 """
 Data processing
 """
-from . import dataset_download, dataset_factory, loader, transforms_factory
+from . import dataset_download, dataset_factory, loader, transforms_factory, pretrain_loader, pretrain_transforms_factory
 from .auto_augment import *
 from .constants import *
 from .dataset_download import *
 from .dataset_factory import *
 from .loader import *
 from .transforms_factory import *
+from .pretrain_loader import *
+from .pretrain_transforms_factory import *
 
 __all__ = []
 __all__.extend(dataset_download.__all__)
 __all__.extend(dataset_factory.__all__)
 __all__.extend(loader.__all__)
 __all__.extend(transforms_factory.__all__)
+__all__.extend(pretrain_loader.__all__)
+__all__.extend(pretrain_transforms_factory.__all__)

@@ -1,6 +1,5 @@
-from .block_wise_mask import *
-from .patch_aligned_mask import *
+from . import mask_factory
+from .mask_factory import create_mask_generator
 
 __all__ = []
-__all__.extend(block_wise_mask.__all__)
-__all__.extend(patch_aligned_mask.__all__)
+__all__.extend(mask_factory.__all__)

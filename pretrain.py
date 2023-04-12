@@ -73,7 +73,7 @@ def train(args):
         std=args.std,
         mask_type=args.mask_type,
         mask_ratio=args.mask_ratio,
-        model_patch_size=patch_size,
+        patch_size=patch_size,
         mask_patch_size=args.mask_patch_size,
     )
 

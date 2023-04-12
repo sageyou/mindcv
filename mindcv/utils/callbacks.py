@@ -209,7 +209,7 @@ class StateMonitor(Callback):
                 self.ckpt_manager.save_ckpoint(
                     cb_params.train_network,
                     num_ckpt=self.ckpt_keep_max,
-                    metric=res[0],
+                    metric=res[0] if len(self.metric_name) > 0 else 0.0,
                     save_path=ckpt_save_path,
                 )
 

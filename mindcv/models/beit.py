@@ -16,8 +16,8 @@ from .registry import register_model
 
 __all__ = [
     "dall_e",
-    "beit_base_patch16_224_8k_vocab",
-    "beit_large_patch16_224_8k_vocab"
+    "beit_b_16_224_8k_vocab",
+    "beit_l_16_224_8k_vocab"
 ]
 
 class DVaeEncoderBlock(nn.Cell):
@@ -446,7 +446,7 @@ def dall_e(pretrained=False, freeze=True, **kwargs):
 
 
 @register_model
-def beit_base_patch16_224_8k_vocab(pretrained=False, **kwargs):
+def beit_b_16_224_8k_vocab(pretrained=False, **kwargs):
     model = VisionTransformerForMaskedImageModeling(
         patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, epsilon=1e-6), vocab_size=8192, **kwargs
@@ -457,7 +457,7 @@ def beit_base_patch16_224_8k_vocab(pretrained=False, **kwargs):
 
 
 @register_model
-def beit_large_patch16_224_8k_vocab(pretrained=False, **kwargs):
+def beit_l_16_224_8k_vocab(pretrained=False, **kwargs):
     model = VisionTransformerForMaskedImageModeling(
         patch_size=16, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, epsilon=1e-6), vocab_size=8192, **kwargs

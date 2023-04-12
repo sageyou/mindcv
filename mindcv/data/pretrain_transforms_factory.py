@@ -8,7 +8,7 @@ from mindspore.dataset import vision
 from mindspore.dataset.vision import Inter
 from mindspore.dataset.transforms import Compose
 
-from .mask_generator import BlockWiseMaskGenerator, PatchAlignedMaskGenerator
+from .mask_generator import create_mask_generator
 from .constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 __all__ = [
@@ -98,22 +98,11 @@ class TransformsForPretrain:
                     )
                 ])
 
-            if mask_type == "block-wise": # beit, beit v2, eva, eva-02
-                self.masked_position_generator = BlockWiseMaskGenerator(
-                    input_size=resize_list[0],
-                    model_patch_size=patch_size,
-                    mask_ratio=mask_ratio,
-                )
-            elif mask_type == "patch-aligned": # SimMIM
-                self.masked_position_generator = PatchAlignedMaskGenerator(
-                    input_size=resize_list[0],
-                    mask_patch_size=kwargs["mask_patch_size"],
-                    model_patch_size=patch_size,
-                    mask_ratio=mask_ratio
-                )
-            else:
-                raise NotImplementedError()
-
+            self.masked_position_generator = create_mask_generator(
+                                                mask_type, input_size=resize_list[0],
+                                                patch_size=patch_size, mask_ratio=mask_ratio,
+                                                **kwargs
+                                            )
             self.output_columns = ["patch", "token", "mask"]
         else:
             self.common_transform = None
@@ -135,27 +124,14 @@ class TransformsForPretrain:
                 vision.HWC2CHW()
             ]
             self.patch_transform = Compose(patch_transform)
-            
-            if mask_type == "block-wise": # beit, beit v2, eva, eva-02
-                self.masked_position_generator = BlockWiseMaskGenerator(
-                    input_size=resize_list[0],
-                    model_patch_size=patch_size,
-                    mask_ratio=mask_ratio,
-                )
-                self.output_columns = ["patch", "mask"]
-            elif mask_type == "patch-aligned": # SimMIM
-                self.masked_position_generator = PatchAlignedMaskGenerator(
-                    input_size=resize_list[0],
-                    mask_patch_size=kwargs["mask_patch_size"],
-                    model_patch_size=patch_size,
-                    mask_ratio=mask_ratio,
-                )
-                self.output_columns = ["patch", "mask"]
-            elif mask_type == "none":
-                self.masked_position_generator = None
-                self.output_columns = ["patch"]
-            else:
-                raise NotImplementedError()
+
+
+            self.masked_position_generator = create_mask_generator(
+                                                mask_type, input_size=resize_list[0],
+                                                patch_size=patch_size, mask_ratio=mask_ratio,
+                                                **kwargs
+                                            )
+            self.output_columns = ["patch", "mask"]
 
     def __call__(self, image):
         if self.common_transform is not None: # for beit, beit v2, eva, eva-02
@@ -165,12 +141,9 @@ class TransformsForPretrain:
             masks = self.masked_position_generator()
             return patches, visual_tokens, masks
         else:
-            patches = self.patch_transform(image)
-            if self.masked_position_generator is not None: # for SimMIM
-                masks = self.masked_position_generator()
-                return patches, masks
-            else: # for MAE
-                return patches
+            patches = self.patch_transform(image) # for MAE, SimMIM
+            masks = self.masked_position_generator()
+            return patches, masks
 
 
 def create_transforms_pretrain(

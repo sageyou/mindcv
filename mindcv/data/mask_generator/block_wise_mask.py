@@ -3,8 +3,6 @@ import random
 import numpy as np
 from typing import Optional, Tuple
 
-__all__ = ["BlockWiseMaskGenerator"]
-
 
 class BlockWiseMaskGenerator:
     def __init__(

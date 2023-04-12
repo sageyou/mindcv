@@ -283,7 +283,8 @@ def create_parser():
                        help='Initialize tokenizer model from this checkpoint')
     group.add_argument('--vocab_size', type=int, default=8192,
                        help='Vocabulary size of visual tokens')
-    group.add_argument('--mask_type', type=str, default='block-wise',
+    group.add_argument('--mask_type', type=str, default='block_wise',
+                       choices=['block_wise', 'patch_aligned', 'random'],
                        help='Type of mask generator')
     group.add_argument('--mask_ratio', type=float, default=0.4,
                        help='Masking ratio')

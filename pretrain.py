@@ -101,6 +101,7 @@ def train(args):
         model_name=args.model,
         drop_rate=args.drop_rate,
         drop_path_rate=args.drop_path_rate,
+        mask_ratio = args.mask_ratio,
         pretrained=args.pretrained,
         checkpoint_path=args.ckpt_path,
         ema=args.ema,

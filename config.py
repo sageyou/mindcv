@@ -272,12 +272,12 @@ def create_parser():
 
     # pre-train
     group = parser.add_argument_group('pre-train')
-    group.add_argument('--pretrain_resize', type=list, default=[224, 112],
+    group.add_argument('--pretrain_resize', type=list, default=[224],
                        help='Crop the size of the image for pre-training.'
                             'The length of list should be 2 if tokenizer is required. (default=[224])')
     group.add_argument('--pretrain_interpolations', type=list, default=['bicubic', 'bilinear'],
                        help='Image interpolation mode for resize operator for pre-trainin')
-    group.add_argument('--tokenizer', type=str, default='dall_e',
+    group.add_argument('--tokenizer', type=str, default=None,
                        help='Name of tokenizer model for pre-train')
     group.add_argument('--tokenizer_ckpt_path', type=str, default='',
                        help='Initialize tokenizer model from this checkpoint')

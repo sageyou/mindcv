@@ -12,12 +12,39 @@ from .layers.drop_path import DropPath
 from .layers.mlp import Mlp
 from .layers.patch_embed import PatchEmbed
 from .registry import register_model
+from .utils import load_pretrained
 
 __all__ = [
     "dall_e",
-    "beit_b_16_224_8k_vocab",
-    "beit_l_16_224_8k_vocab"
+    "beit_b_16_224_pretrain",
+    "beit_l_16_224_pretrain",
+    "beit_b_16_224_finetune",
+    "beit_b_16_384_finetune",
+    "beit_l_16_224_finetune",
+    "beit_l_16_384_finetune",
+    "beit_l_16_512_finetune"
 ]
+
+
+def _cfg(url="", **kwargs):
+    return {
+        "url": url,
+        "num_classes": 8192,
+        "input_size": (3, 224, 224),
+        "first_conv": "patch_embed.proj",
+        "classifier": "head",
+        **kwargs,
+    }
+    
+
+default_cfgs = {
+    "beit_b_16_224_finetune": _cfg(url="", use_rel_pos_bias=True),
+    "beit_b_16_384_finetune": _cfg(url="", input_size=(3, 384, 384), use_rel_pos_bias=True),
+    "beit_l_16_224_finetune": _cfg(url="", use_rel_pos_bias=True),
+    "beit_l_16_384_finetune": _cfg(url="", input_size=(3, 384, 384), use_rel_pos_bias=True),
+    "beit_l_16_512_finetune": _cfg(url="", input_size=(3, 512, 512), use_rel_pos_bias=True),
+}
+
 
 class DVaeEncoderBlock(nn.Cell):
     def __init__(
@@ -108,13 +135,13 @@ class DVaeEncoder(nn.Cell):
         return labels
 
 
-class RelativePositionBias(nn.Cell):
+class RelativePositionBiasWithCLS(nn.Cell):
     def __init__(
         self,
         window_size: Tuple[int],
         num_heads: int
     ):
-        super(RelativePositionBias, self).__init__()
+        super(RelativePositionBiasWithCLS, self).__init__()
         self.window_size = window_size
         self.num_tokens = window_size[0] * window_size[1]
 
@@ -142,10 +169,10 @@ class RelativePositionBias(nn.Cell):
         relative_position_index = Tensor(relative_position_index.reshape(-1)) 
 
         self.one_hot = nn.OneHot(axis=-1, depth=num_relative_distance)
-        self.index = Parameter(self.one_hot(relative_position_index), requires_grad=False)
+        self.relative_position_index = Parameter(self.one_hot(relative_position_index), requires_grad=False)
 
     def construct(self):
-        out = ops.matmul(self.index, self.relative_position_bias_table)
+        out = ops.matmul(self.relative_position_index, self.relative_position_bias_table)
         out = ops.reshape(out, (self.num_tokens + 1, self.num_tokens + 1, -1))
         out = ops.transpose(out, (2, 0, 1))
         out = ops.expand_dims(out, 0)
@@ -188,8 +215,6 @@ class Attention(nn.Cell):
         attn_drop: float = 0.0,
         proj_drop: float = 0.0,
         attn_head_dim: Optional[int] = None,
-        rel_pos_bias: Union[nn.Cell, bool] = False,
-        window_size: Optional[Tuple] = None
     ):
         super(Attention, self).__init__()
         self.num_heads = num_heads
@@ -208,13 +233,6 @@ class Attention(nn.Cell):
         else:
             self.qkv = nn.Dense(dim, all_head_dim * 3, has_bias=False)
 
-        if isinstance(rel_pos_bias, RelativePositionBias):
-            self.relative_position_bias = rel_pos_bias
-        elif rel_pos_bias:
-            self.relative_position_bias = RelativePositionBias(window_size, num_heads)
-        else:
-            self.relative_position_bias = None
-
         self.attn_drop = nn.Dropout(1 - attn_drop)
         self.proj = nn.Dense(all_head_dim, dim)
         self.proj_drop = nn.Dropout(1 - proj_drop)
@@ -227,7 +245,7 @@ class Attention(nn.Cell):
         self.q_matmul_k = ops.BatchMatMul(transpose_b=True)
         self.softmax = nn.Softmax(axis=-1)
 
-    def construct(self, x):
+    def construct(self, x, rel_pos_bias=None):
         b, n, c = x.shape
         qkv = self.qkv(x)
         qkv = self.reshape(qkv, (b, n, 3, self.num_heads, c // self.num_heads))
@@ -237,8 +255,7 @@ class Attention(nn.Cell):
         attn = self.q_matmul_k(q, k)
         attn = self.mul(attn, self.scale)
 
-        if self.relative_position_bias is not None:
-            rel_pos_bias = self.relative_position_bias()
+        if rel_pos_bias is not None:
             attn  = attn + rel_pos_bias
 
         attn = self.softmax(attn)
@@ -281,15 +298,12 @@ class Block(nn.Cell):
         init_values: Optional[float] = None,
         act_layer: nn.Cell = nn.GELU,
         norm_layer: nn.Cell = nn.LayerNorm,
-        rel_pos_bias: Union[nn.Cell, bool] = False,
-        window_size: Optional[Tuple] = None
     ):
         super(Block, self).__init__()
         self.norm1 = norm_layer((dim,))
         self.attn = Attention(
             dim=dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
             attn_drop=attn_drop, proj_drop=proj_drop, attn_head_dim=attn_head_dim,
-            rel_pos_bias=rel_pos_bias, window_size=window_size
         )
         self.ls1 = LayerScale(dim=dim, init_values=init_values) if init_values else nn.Identity()
         self.drop_path1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -302,8 +316,8 @@ class Block(nn.Cell):
         self.ls2 = LayerScale(dim=dim, init_values=init_values) if init_values else nn.Identity()
         self.drop_path2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-    def construct(self, x):
-        x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x))))
+    def construct(self, x, rel_pos_bias=None):
+        x = x + self.drop_path1(self.ls1(self.attn(self.norm1(x), rel_pos_bias)))
         x = x + self.drop_path2(self.ls2(self.mlp(self.norm2(x))))
         return x
 
@@ -341,16 +355,20 @@ class VisionTransformerEncoder(nn.Cell):
 
         self.cls_token = Parameter(initializer('truncatedNormal', (1, 1, embed_dim)))
         
-        self.pos_emb = Parameter(initializer('truncatedNormal', (1, self.num_patches + 1, embed_dim))) if use_abs_pos_emb else None
+        self.pos_embed = Parameter(initializer('truncatedNormal', 
+                                             (1, self.num_patches + 1, embed_dim))) if use_abs_pos_emb else None
         self.pos_drop = nn.Dropout(1 - pos_drop_rate)
 
         if use_shared_rel_pos_bias:
-            rel_pos_bias = RelativePositionBias(window_size=self.patch_embed.patches_resolution,
-                                                num_heads=num_heads)
+            self.rel_pos_bias = RelativePositionBiasWithCLS(window_size=self.patch_embed.patches_resolution,
+                                                       num_heads=num_heads)
         elif use_rel_pos_bias:
-            rel_pos_bias = True
+            self.rel_pos_bias = nn.CellList([
+                RelativePositionBiasWithCLS(window_size=self.patch_embed.patches_resolution,
+                                            num_heads=num_heads) for _ in range(depth)
+            ])
         else:
-            rel_pos_bias = False
+            self.rel_pos_bias = None
 
         dpr = [x.item() for x in np.linspace(0, drop_path_rate, depth)]
         self.blocks = nn.CellList([
@@ -358,12 +376,11 @@ class VisionTransformerEncoder(nn.Cell):
                 dim=embed_dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
                 attn_drop=attn_drop_rate, proj_drop=proj_drop_rate, attn_head_dim=attn_head_dim,
                 mlp_ratio=mlp_ratio, drop_path=dpr[i], init_values=init_values,
-                act_layer=act_layer, norm_layer=norm_layer, rel_pos_bias=rel_pos_bias,
-                window_size=self.patch_embed.patches_resolution 
+                act_layer=act_layer, norm_layer=norm_layer
             ) for i in range(depth)
         ])
 
-    def get_num_layeres(self):
+    def get_num_layers(self):
         return len(self.blocks)
     
     def _init_weights(self):
@@ -408,12 +425,19 @@ class VisionTransformerEncoder(nn.Cell):
         cls_token = ops.broadcast_to(self.cls_token, (bsz, -1, -1))
         x = ops.concat((cls_token, x), axis=1)
         
-        if self.pos_emb is not None:
-            x = x + self.pos_emb
+        if self.pos_embed is not None:
+            x = x + self.pos_embed
         x = self.pos_drop
 
-        for blk in self.blocks:
-            x = blk(x)
+        if isinstance(self.rel_pos_bias, nn.CellList):
+            rel_pos_bias = [rpb() for rpb in self.rel_pos_bias]
+        elif isinstance(self.rel_pos_bias, nn.Cell):
+            rel_pos_bias = [self.rel_pos_bias() for _ in range(len(self.blocks))]
+        else:
+            rel_pos_bias = [None for _ in range(len(self.blocks))]
+
+        for i, blk in enumerate(self.blocks):
+            x = blk(x, rel_pos_bias[i])
 
         return x
 
@@ -488,12 +512,19 @@ class BEiTForPretrain(VisionTransformerEncoder):
         cls_tokens = ops.broadcast_to(self.cls_token, (bsz, -1, -1))
         x = ops.concat((cls_tokens, x), axis=1)
 
-        if self.pos_emb is not None:
-            x = x + self.pos_emb
+        if self.pos_embed is not None:
+            x = x + self.pos_embed
         x = self.pos_drop(x)
 
-        for blk in self.blocks:
-            x = blk(x)
+        if isinstance(self.rel_pos_bias, nn.CellList):
+            rel_pos_bias = [rpb() for rpb in self.rel_pos_bias]
+        elif isinstance(self.rel_pos_bias, nn.Cell):
+            rel_pos_bias = [self.rel_pos_bias() for _ in range(len(self.blocks))]
+        else:
+            rel_pos_bias = [None for _ in range(len(self.blocks))]
+
+        for i, blk in enumerate(self.blocks):
+            x = blk(x, rel_pos_bias[i])
 
         x = self.norm(x)
         return x
@@ -565,7 +596,7 @@ class BEiTForFinetune(VisionTransformerEncoder):
         self._fix_init_weights()
         
         self.head.weight.set_data(ops.mul(self.head.weight, init_scale))
-        self.head.bias.set_data(ops.mul(self.head_bias, init_scale))
+        self.head.bias.set_data(ops.mul(self.head.bias, init_scale))
 
     def construct(self, x):
         x = self.forward_features(x)
@@ -592,7 +623,7 @@ def dall_e(pretrained=False, freeze=True, **kwargs):
 
 
 @register_model
-def beit_b_16_224_8k_vocab(pretrained=False, **kwargs):
+def beit_b_16_224_pretrain(pretrained=False, **kwargs):
     model = BEiTForPretrain(
         patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, epsilon=1e-6), vocab_size=8192, **kwargs
@@ -603,11 +634,71 @@ def beit_b_16_224_8k_vocab(pretrained=False, **kwargs):
 
 
 @register_model
-def beit_l_16_224_8k_vocab(pretrained=False, **kwargs):
+def beit_l_16_224_pretrain(pretrained=False, **kwargs):
     model = BEiTForPretrain(
         patch_size=16, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, epsilon=1e-6), vocab_size=8192, **kwargs
     )
     if pretrained:
         pass
+    return model
+    
+
+@register_model
+def beit_b_16_224_finetune(pretrained=True, num_classes=1000, in_chans=3, **kwargs):
+    default_cfg = default_cfgs["beit_b_16_224_finetune"]
+    model = BEiTForFinetune(
+        patch_size=16, in_chans=in_chans, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
+        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+    )
+    if pretrained:
+        load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
+    return model
+
+
+@register_model
+def beit_b_16_384_finetune(pretrained=True, num_classes=1000, in_chans=3, **kwargs):
+    default_cfg = default_cfgs["beit_b_16_384_finetune"]
+    model = BEiTForFinetune(
+        img_size=384, patch_size=16, in_chans=in_chans, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
+        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+    )
+    if pretrained:
+        load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
+    return model
+    
+
+@register_model
+def beit_l_16_224_finetune(pretrained=True, num_classes=1000, in_chans=3, **kwargs):
+    default_cfg = default_cfgs["beit_l_16_224_finetune"]
+    model = BEiTForFinetune(
+        patch_size=16, in_chans=in_chans, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
+        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+    )
+    if pretrained:
+        load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
+    return model
+    
+
+@register_model
+def beit_l_16_384_finetune(pretrained=True, num_classes=1000, in_chans=3, **kwargs):
+    default_cfg = default_cfgs["beit_l_16_384_finetune"]
+    model = BEiTForFinetune(
+        img_size=384, patch_size=16, in_chans=in_chans, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
+        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+    )
+    if pretrained:
+        load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
+    return model
+
+
+@register_model
+def beit_l_16_512_finetune(pretrained=True, num_classes=1000, in_chans=3, **kwargs):
+    default_cfg = default_cfgs["beit_l_16_512_finetune"]
+    model = BEiTForFinetune(
+        img_size=512, patch_size=16, in_chans=in_chans, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
+        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+    )
+    if pretrained:
+        load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
     return model

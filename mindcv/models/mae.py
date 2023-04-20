@@ -8,12 +8,35 @@ from mindspore import nn, ops, Tensor, Parameter
 
 from .beit import Block, VisionTransformerEncoder
 from .registry import register_model
+from .utils import load_pretrained
 
 __all__ = [
-    "mae_b_16_224_dec512d8b",
-    "mae_l_16_224_dec512d8b",
-    "mae_h_16_224_dec512d8b"
+    "mae_b_16_224_pretrain",
+    "mae_l_16_224_pretrain",
+    "mae_h_16_224_pretrain",
+    "mae_b_16_224_finetune",
+    "mae_l_16_224_finetune",
+    "mae_h_14_224_finetune"
 ]
+
+
+def _cfg(url="", **kwargs):
+    return {
+        "url": url,
+        "num_classes": 1000,
+        "input_size": (3, 224, 224),
+        "first_conv": "patch_embed.proj",
+        "classifier": "head",
+        **kwargs,
+    }
+
+
+default_cfgs = {
+    "mae_b_16_224_finetune": _cfg(url=""),
+    "mae_l_16_224_finetune": _cfg(url=""),
+    "mae_h_14_224_finetune": _cfg(url=""),
+}
+
 
 def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
     """
@@ -104,7 +127,7 @@ class MAEForPretrain(VisionTransformerEncoder):
 
         encoder_pos_emb = Tensor(get_2d_sincos_pos_embed(embed_dim, int(self.num_patches ** 0.5), cls_token=True), ms.float32)
         encoder_pos_emb = ops.expand_dims(encoder_pos_emb, axis=0)
-        self.pos_emb = Parameter(encoder_pos_emb, requires_grad=False)
+        self.pos_embed = Parameter(encoder_pos_emb, requires_grad=False)
         self.norm = norm_layer((embed_dim,))
 
         self.decoder_embed = nn.Dense(embed_dim, decoder_embed_dim)
@@ -197,10 +220,10 @@ class MAEForPretrain(VisionTransformerEncoder):
         x = self.patch_embed(x)
         bsz = x.shape[0]
 
-        x = x + self.pos_emb[:, 1:, :]
+        x = x + self.pos_embed[:, 1:, :]
         x, ids_restore = self.apply_masking(x, mask)
 
-        cls_token = self.cls_token + self.pos_emb[:, :1, :]
+        cls_token = self.cls_token + self.pos_embed[:, :1, :]
         cls_token = ops.broadcast_to(cls_token, (bsz, -1, -1))
         x = ops.concat((cls_token, x), axis=1)
 
@@ -272,9 +295,6 @@ class MAEForFinetune(VisionTransformerEncoder):
         init_values: Optional[float] = 0.1,
         act_layer: nn.Cell = nn.GELU,
         norm_layer: nn.Cell = nn.LayerNorm,
-        use_abs_pos_emb: bool = True,
-        use_rel_pos_bias: bool = False,
-        use_shared_rel_pos_bias: bool = False,
         num_classes: int = 1000,
         use_mean_pooling: bool = True,
         **kwargs
@@ -297,9 +317,9 @@ class MAEForFinetune(VisionTransformerEncoder):
             init_values=init_values,
             act_layer=act_layer,
             norm_layer=norm_layer,
-            use_abs_pos_emb=use_abs_pos_emb,
-            use_rel_pos_bias=use_rel_pos_bias,
-            use_shared_rel_pos_bias=use_shared_rel_pos_bias,
+            use_abs_pos_emb=True,
+            use_rel_pos_bias=False,
+            use_shared_rel_pos_bias=False,
             **kwargs
         )
         self.use_mean_pooling = use_mean_pooling
@@ -322,7 +342,7 @@ class MAEForFinetune(VisionTransformerEncoder):
 
 
 @register_model
-def mae_b_16_224_dec512d8b(pretrained=False, **kwargs):
+def mae_b_16_224_pretrain(pretrained=False, **kwargs):
     model = MAEForPretrain(
         patch_size=16, embed_dim=768, depth=12, num_heads=12,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
@@ -334,7 +354,7 @@ def mae_b_16_224_dec512d8b(pretrained=False, **kwargs):
 
 
 @register_model
-def mae_l_16_224_dec512d8b(pretrained=False, **kwargs):
+def mae_l_16_224_pretrain(pretrained=False, **kwargs):
     model = MAEForPretrain(
         patch_size=16, embed_dim=1024, depth=24, num_heads=16,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
@@ -346,7 +366,7 @@ def mae_l_16_224_dec512d8b(pretrained=False, **kwargs):
 
 
 @register_model
-def mae_h_16_224_dec512d8b(pretrained=False, **kwargs):
+def mae_h_16_224_pretrain(pretrained=False, **kwargs):
     model = MAEForPretrain(
         patch_size=16, embed_dim=1280, depth=32, num_heads=16,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
@@ -354,4 +374,40 @@ def mae_h_16_224_dec512d8b(pretrained=False, **kwargs):
     )
     if pretrained:
         pass
+    return model
+
+
+@register_model
+def mae_b_16_224_finetune(pretrained=True, in_chans=3, num_classes=1000, **kwargs):
+    default_cfg = default_cfgs["mae_b_16_224_finetune"]
+    model = MAEForFinetune(
+        patch_size=16, in_chans=in_chans, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
+        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+    )
+    if pretrained:
+        load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
+    return model
+
+
+@register_model
+def mae_l_16_224_finetune(pretrained=True, in_chans=3, num_classes=1000, **kwargs):
+    default_cfg = default_cfgs["mae_l_16_224_finetune"]
+    model = MAEForFinetune(
+        patch_size=16, in_chans=in_chans, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
+        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+    )
+    if pretrained:
+        load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
+    return model
+
+
+@register_model
+def mae_h_14_224_finetune(pretrained=True, in_chans=3, num_classes=1000, **kwargs):
+    default_cfg = default_cfgs["mae_h_14_224_finetune"]
+    model = MAEForFinetune(
+        patch_size=14, in_chans=in_chans, embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4,
+        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+    )
+    if pretrained:
+        load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
     return model

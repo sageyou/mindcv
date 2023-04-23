@@ -102,7 +102,7 @@ class MAEForPretrain(VisionTransformerEncoder):
         decoder_depth: int = 8,
         decoder_num_heads: int = 16,
         norm_layer: nn.Cell = nn.LayerNorm,
-        norm_pix_loss: bool = False,
+        norm_pix_loss: bool = True,
         mask_ratio: float = 0.75,
         **kwargs
     ):
@@ -141,7 +141,6 @@ class MAEForPretrain(VisionTransformerEncoder):
             Block(
                 dim=decoder_embed_dim, num_heads=decoder_num_heads, qkv_bias=True,
                 mlp_ratio=mlp_ratio, init_values=None, norm_layer=norm_layer,
-                rel_pos_bias=False, window_size=None
             ) for _ in range(decoder_depth)
         ])
         self.decoder_norm = norm_layer((decoder_embed_dim,))

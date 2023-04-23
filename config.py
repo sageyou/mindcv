@@ -265,12 +265,10 @@ def create_parser():
                        help='Name of tokenizer model for pre-train')
     group.add_argument('--tokenizer_ckpt_path', type=str, default='',
                        help='Initialize tokenizer model from this checkpoint')
-    group.add_argument('--vocab_size', type=int, default=8192,
-                       help='Vocabulary size of visual tokens')
-    group.add_argument('--mask_type', type=str, default='block_wise',
+    group.add_argument('--mask_type', type=str, default='random',
                        choices=['block_wise', 'patch_aligned', 'random'],
                        help='Type of mask generator')
-    group.add_argument('--mask_ratio', type=float, default=0.4,
+    group.add_argument('--mask_ratio', type=float, default=0.75,
                        help='Masking ratio')
     group.add_argument('--mask_patch_size', type=int, default=32,
                        help='Size of mask patch')

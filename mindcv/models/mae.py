@@ -238,6 +238,7 @@ class MAEForPretrain(VisionTransformerEncoder):
 
         mask_len = self.num_patches + 1 - L
         mask_tokens = ops.broadcast_to(self.mask_token, (bsz, mask_len, -1))
+        mask_tokens = mask_tokens.astype(x.dtype)
 
         x_ = ops.concat((x[:, 1:, :], mask_tokens), axis=1)
         ids_restore = ops.broadcast_to(ops.expand_dims(ids_restore, axis=-1), (-1, -1, D))
@@ -262,6 +263,7 @@ class MAEForPretrain(VisionTransformerEncoder):
         loss = (pred - target) ** 2
         loss = loss.mean(axis=-1)
 
+        mask = mask.astype(loss.dtype)
         loss = (loss * mask).sum() / mask.sum()
         return loss
 

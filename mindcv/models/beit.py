@@ -526,7 +526,6 @@ class BEiTForPretrain(VisionTransformerEncoder):
         for i, blk in enumerate(self.blocks):
             x = blk(x, rel_pos_bias[i])
 
-        x = self.norm(x)
         return x
 
     def construct(self, x, bool_masked_pos):

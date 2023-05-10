@@ -44,6 +44,7 @@ from . import (
     senet,
     shufflenetv1,
     shufflenetv2,
+    simmim,
     sknet,
     squeezenet,
     swin_transformer,
@@ -99,6 +100,7 @@ from .rexnet import *
 from .senet import *
 from .shufflenetv1 import *
 from .shufflenetv2 import *
+from .simmim import *
 from .sknet import *
 from .squeezenet import *
 from .swin_transformer import *
@@ -156,6 +158,7 @@ __all__.extend(rexnet.__all__)
 __all__.extend(senet.__all__)
 __all__.extend(shufflenetv1.__all__)
 __all__.extend(shufflenetv2.__all__)
+__all__.extend(simmim.__all__)
 __all__.extend(sknet.__all__)
 __all__.extend(squeezenet.__all__)
 __all__.extend(swin_transformer.__all__)

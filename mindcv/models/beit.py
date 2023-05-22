@@ -382,6 +382,9 @@ class VisionTransformerEncoder(nn.Cell):
 
     def get_num_layers(self):
         return len(self.blocks)
+
+    def no_weight_decay(self):
+        return {'pos_embed', 'cls_token'}
     
     def _init_weights(self):
         for _, cell in self.cells_and_names():

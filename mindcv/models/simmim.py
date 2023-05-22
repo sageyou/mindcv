@@ -118,6 +118,16 @@ class SimMIM(nn.Cell):
 
         self.l1_loss = nn.L1Loss(reduction='none')
 
+    def no_weight_decay(self):
+        if hasattr(self.encoder, 'no_weight_decay'):
+            return {'encoder.' + i for i in self.encoder.no_weight_decay()}
+        return {}
+
+    def no_weight_decay_keywords(self):
+        if hasattr(self.encoder, 'no_weight_decay_keywords'):
+            return {'encoder.' + i for i in self.encoder.no_weight_decay_keywords()}
+        return {}
+
     def forward_loss(self, x, x_rec, mask):
         loss_recon = self.l1_loss(x, x_rec)
 

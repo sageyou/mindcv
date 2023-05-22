@@ -427,7 +427,7 @@ class VisionTransformerEncoder(nn.Cell):
         
         if self.pos_embed is not None:
             x = x + self.pos_embed
-        x = self.pos_drop
+        x = self.pos_drop(x)
 
         if isinstance(self.rel_pos_bias, nn.CellList):
             rel_pos_bias = [rpb() for rpb in self.rel_pos_bias]

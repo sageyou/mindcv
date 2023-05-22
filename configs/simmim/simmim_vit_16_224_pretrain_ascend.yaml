@@ -1,6 +1,6 @@
 # system
-mode: 1
-distribute: False
+mode: 0
+distribute: True
 num_parallel_workers: 8
 
 # dataset
@@ -8,7 +8,7 @@ dataset: "imagenet"
 data_dir: "/path/to/imagenet"
 shuffle: True
 dataset_download: False
-batch_size: 32
+batch_size: 64
 drop_remainder: True
 
 # augmentation
@@ -31,15 +31,13 @@ amp_level: "O0"
 
 # loss
 loss: "None"
-loss_scale: 1024.0
-label_smoothing: 0.1
 
 # lr scheduler
-scheduler: "warmup_cosine_decay"
-lr: 1.5e-4
-min_lr: 1e-6
-warmup_epochs: 40
-decay_epochs: 600
+scheduler: "multi_step_decay"
+lr: 2e-4
+min_lr: 1e-5
+warmup_epochs: 10
+decay_epochs: 30
 lr_epoch_stair: False
 
 # optimizer

@@ -9,7 +9,7 @@ from mindspore.communication import get_group_size, get_rank, init
 from mindcv.data import create_dataset, create_loader_pretrain, create_transforms_pretrain
 from mindcv.loss import create_loss
 from mindcv.models import create_model
-from mindcv.optim import create_optimizer
+from mindcv.optim import create_pretrain_optimizer
 from mindcv.scheduler import create_scheduler
 from mindcv.utils import AllReduceSum, StateMonitor, create_trainer, get_metrics, set_seed
 
@@ -29,7 +29,7 @@ def train(args):
 
     ms.set_context(mode=args.mode)
     if args.distribute:
-        init()
+        init('nccl')
         device_num = get_group_size()
         rank_id = get_rank()
         ms.set_auto_parallel_context(
@@ -157,8 +157,8 @@ def train(args):
         optimizer_loss_scale = args.loss_scale
     else:
         optimizer_loss_scale = 1.0
-    optimizer = create_optimizer(
-        network.trainable_params(),
+    optimizer = create_pretrain_optimizer(
+        network,
         opt=args.opt,
         lr=lr_scheduler,
         weight_decay=args.weight_decay,

@@ -5,7 +5,7 @@ from typing import Optional, Tuple, Union
 from functools import partial
 
 import mindspore as ms
-from mindspore.common.initializer import initializer
+from mindspore.common.initializer import initializer, TruncatedNormal
 from mindspore import nn, ops, Tensor, Parameter
 
 from .layers.drop_path import DropPath
@@ -353,9 +353,9 @@ class VisionTransformerEncoder(nn.Cell):
                                       in_chans=in_chans, embed_dim=embed_dim)
         self.num_patches = self.patch_embed.num_patches
 
-        self.cls_token = Parameter(initializer('truncatedNormal', (1, 1, embed_dim)))
+        self.cls_token = Parameter(initializer(TruncatedNormal(0.02), (1, 1, embed_dim)))
         
-        self.pos_embed = Parameter(initializer('truncatedNormal', 
+        self.pos_embed = Parameter(initializer(TruncatedNormal(0.02), 
                                              (1, self.num_patches + 1, embed_dim))) if use_abs_pos_emb else None
         self.pos_drop = nn.Dropout(1 - pos_drop_rate)
 
@@ -390,7 +390,7 @@ class VisionTransformerEncoder(nn.Cell):
         for _, cell in self.cells_and_names():
             if isinstance(cell, nn.Dense):
                 cell.weight.set_data(
-                    initializer('truncatedNormal', cell.weight.shape, cell.weight.dtype)
+                    initializer(TruncatedNormal(0.02), cell.weight.shape, cell.weight.dtype)
                 )
                 if cell.bias is not None:
                     cell.bias.set_data(
@@ -405,7 +405,7 @@ class VisionTransformerEncoder(nn.Cell):
                 )
             elif isinstance(cell, nn.Conv2d):
                 cell.weight.set_data(
-                    initializer('truncatedNormal', cell.weight.shape, cell.weight.dtype)
+                    initializer(TruncatedNormal(0.02), cell.weight.shape, cell.weight.dtype)
                 )
                 if cell.bias is not None:
                     cell.bias.set_data(
@@ -497,8 +497,8 @@ class BEiTForPretrain(VisionTransformerEncoder):
             use_shared_rel_pos_bias=use_shared_rel_pos_bias,
             **kwargs
         )
-        self.mask_token = Parameter(initializer('truncatedNormal', (1, 1, embed_dim)))
-        self.head = nn.Dense(embed_dim, vocab_size, weight_init='truncatedNormal')
+        self.mask_token = Parameter(initializer(TruncatedNormal(0.02), (1, 1, embed_dim)))
+        self.head = nn.Dense(embed_dim, vocab_size, weight_init=TruncatedNormal(0.02))
         self.norm = norm_layer((embed_dim, ))
 
         self._init_weights()

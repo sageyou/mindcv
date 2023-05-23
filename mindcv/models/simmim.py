@@ -3,7 +3,7 @@ from typing import Optional
 from functools import partial
 
 import mindspore as ms
-from mindspore.common.initializer import initializer, Normal
+from mindspore.common.initializer import initializer, TruncatedNormal
 from mindspore import nn, ops, Tensor, Parameter
 
 from .beit import VisionTransformerEncoder
@@ -28,7 +28,7 @@ class ViTForSimMIM(VisionTransformerEncoder):
         init_values: Optional[float] = 0.1,
         use_abs_pos_emb: bool = False,
         use_rel_pos_bias: bool = False,
-        use_shared_pos_bias: bool = True,
+        use_shared_rel_pos_bias: bool = True,
         norm_layer: nn.Cell = nn.LayerNorm,
         **kwargs
     ):
@@ -45,13 +45,13 @@ class ViTForSimMIM(VisionTransformerEncoder):
             norm_layer=norm_layer,
             use_abs_pos_emb=use_abs_pos_emb,
             use_rel_pos_bias=use_rel_pos_bias,
-            use_shared_rel_pos_bias=use_shared_pos_bias,
+            use_shared_rel_pos_bias=use_shared_rel_pos_bias,
             **kwargs
         )
         self.in_chans = in_chans
         self.patch_size = patch_size
         self.hw = int(self.num_patches ** 0.5)
-        self.mask_token = Parameter(initializer('truncatedNormal', (1, 1, embed_dim)))
+        self.mask_token = Parameter(initializer(TruncatedNormal(0.02), (1, 1, embed_dim)))
         self.norm = norm_layer((embed_dim, ))
 
         self._init_weights()
@@ -96,6 +96,26 @@ class ViTForSimMIM(VisionTransformerEncoder):
         return x
 
 
+class PixelShuffle(nn.Cell):
+    def __init__(self, upscale_factor):
+        super(PixelShuffle, self).__init__()
+        self.r = upscale_factor
+
+    def construct(self, x):
+        """
+        x: [N, C * r ** 2, H, W]
+        out: [N, C, H * r, W * r]
+        """
+        N, D, H, W = x.shape
+        C = D // (self.r ** 2)
+        assert C * self.r * self.r == D
+
+        x = ops.reshape(x, (N, C, self.r, self.r, H, W))
+        x = ops.transpose(x, (0, 1, 4, 2, 5, 3))
+        x = ops.reshape(x, (N, C, H * self.r, W * self.r))
+        return x
+
+
 class SimMIM(nn.Cell):
     def __init__(
         self,
@@ -114,7 +134,7 @@ class SimMIM(nn.Cell):
             kernel_size=1, has_bias=True, pad_mode='pad'
         )
 
-        self.pixel_shuffle = ops.DepthToSpace(encoder_stride)
+        self.pixel_shuffle = PixelShuffle(encoder_stride)
 
         self.l1_loss = nn.L1Loss(reduction='none')
 

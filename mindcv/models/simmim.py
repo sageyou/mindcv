@@ -6,7 +6,7 @@ import mindspore as ms
 from mindspore.common.initializer import initializer, TruncatedNormal
 from mindspore import nn, ops, Tensor, Parameter
 
-from .beit import VisionTransformerEncoder
+from .beit import VisionTransformerEncoder, LayerNorm
 from .registry import register_model
 from .utils import load_pretrained
 
@@ -74,14 +74,13 @@ class ViTForSimMIM(VisionTransformerEncoder):
         x = self.pos_drop(x)
 
         if isinstance(self.rel_pos_bias, nn.CellList):
-            rel_pos_bias = [rpb() for rpb in self.rel_pos_bias]
-        elif isinstance(self.rel_pos_bias, nn.Cell):
-            rel_pos_bias = [self.rel_pos_bias() for _ in range(len(self.blocks))]
+            for i, blk in enumerate(self.blocks):
+                rel_pos_bias = self.rel_pos_bias[i]()
+                x = blk(x, rel_pos_bias)
         else:
-            rel_pos_bias = [None for _ in range(len(self.blocks))]
-
-        for i, blk in enumerate(self.blocks):
-            x = blk(x, rel_pos_bias[i])
+            rel_pos_bias = self.rel_pos_bias() if self.rel_pos_bias is not None else None
+            for blk in self.blocks:
+                x = blk(x, rel_pos_bias)
 
         return x
 
@@ -151,7 +150,7 @@ class SimMIM(nn.Cell):
     def forward_loss(self, x, x_rec, mask):
         loss_recon = self.l1_loss(x, x_rec)
 
-        mask = mask.astype(loss_recon.dtype)
+        mask = mask.astype(ms.float32)
         loss = (loss_recon * mask).sum() / (mask.sum() + 1e-5) / self.in_chans
         return loss
 
@@ -175,7 +174,7 @@ class SimMIM(nn.Cell):
 def simmim_vit_16_224_pretrain(pretrained=False, **kwargs):
     encoder = ViTForSimMIM(
         patch_size=16, embed_dim=768, depth=12, num_heads=12,
-        norm_layer=partial(nn.LayerNorm, epsilon=1e-6), **kwargs
+        norm_layer=partial(LayerNorm, epsilon=1e-6), **kwargs
     )
     model = SimMIM(encoder, encoder_stride=16)
     if pretrained:

@@ -133,6 +133,30 @@ class DVaeEncoder(nn.Cell):
         indices = self.argmax(z_logits)
         labels = self.reshape(indices, (bsz, -1))
         return labels
+        
+
+class LayerNorm(nn.Cell):
+    def __init__(
+        self,
+        normalized_shape,
+        epsilon=1e-7
+    ):
+        super(LayerNorm, self).__init__()
+        self.gamma = Parameter(initializer('ones', normalized_shape))
+        self.beta = Parameter(initializer('zeros', normalized_shape))
+
+        self.eps = epsilon
+        self.real_div = ops.RealDiv()
+
+    def construct(self, x):
+        mean = ops.mean(x, axis=-1, keep_dims=True)
+        diff = ops.sub(x, mean)
+        variance = ops.mean(ops.square(diff), axis=-1, keep_dims=True)
+        variance_eps = ops.sqrt(ops.add(variance, self.eps))
+        output = self.real_div(diff, variance_eps)
+        output = ops.add(ops.mul(output, self.gamma), self.beta)
+    
+        return output
 
 
 class RelativePositionBiasWithCLS(nn.Cell):
@@ -148,7 +172,7 @@ class RelativePositionBiasWithCLS(nn.Cell):
         num_relative_distance = (2 * window_size[0] - 1) * (2 * window_size[1] - 1) + 3
         # 3: cls to token, token to cls, cls to cls
         self.relative_position_bias_table = Parameter(
-            Tensor(np.random.randn(num_relative_distance, num_heads), dtype=ms.float32)
+            Tensor(np.zeros((num_relative_distance, num_heads)), dtype=ms.float32)
         )
         coords_h = np.arange(window_size[0]).reshape(window_size[0], 1).repeat(window_size[1], 1).reshape(1, -1)
         coords_w = np.arange(window_size[1]).reshape(1, window_size[1]).repeat(window_size[0], 0).reshape(1, -1)
@@ -199,7 +223,7 @@ class Mlp(nn.Cell):
     def construct(self, x):
         x = self.fc1(x)
         x = self.act(x)
-        x = self.drop(x)
+        # x = self.drop(x)
         x = self.fc2(x)
         x = self.drop(x)
         return x
@@ -228,10 +252,7 @@ class Attention(nn.Cell):
         else:
             self.scale = Tensor(head_dim ** -0.5)
 
-        if qkv_bias:
-            self.qkv = nn.Dense(dim, all_head_dim * 3)
-        else:
-            self.qkv = nn.Dense(dim, all_head_dim * 3, has_bias=False)
+        self.qkv = nn.Dense(dim, all_head_dim * 3, has_bias=qkv_bias)
 
         self.attn_drop = nn.Dropout(1 - attn_drop)
         self.proj = nn.Dense(all_head_dim, dim)
@@ -433,14 +454,13 @@ class VisionTransformerEncoder(nn.Cell):
         x = self.pos_drop(x)
 
         if isinstance(self.rel_pos_bias, nn.CellList):
-            rel_pos_bias = [rpb() for rpb in self.rel_pos_bias]
-        elif isinstance(self.rel_pos_bias, nn.Cell):
-            rel_pos_bias = [self.rel_pos_bias() for _ in range(len(self.blocks))]
+            for i, blk in enumerate(self.blocks):
+                rel_pos_bias = self.rel_pos_bias[i]()
+                x = blk(x, rel_pos_bias)
         else:
-            rel_pos_bias = [None for _ in range(len(self.blocks))]
-
-        for i, blk in enumerate(self.blocks):
-            x = blk(x, rel_pos_bias[i])
+            rel_pos_bias = self.rel_pos_bias() if self.rel_pos_bias is not None else None
+            for blk in self.blocks:
+                x = blk(x, rel_pos_bias)
 
         return x
 
@@ -520,14 +540,13 @@ class BEiTForPretrain(VisionTransformerEncoder):
         x = self.pos_drop(x)
 
         if isinstance(self.rel_pos_bias, nn.CellList):
-            rel_pos_bias = [rpb() for rpb in self.rel_pos_bias]
-        elif isinstance(self.rel_pos_bias, nn.Cell):
-            rel_pos_bias = [self.rel_pos_bias() for _ in range(len(self.blocks))]
+            for i, blk in enumerate(self.blocks):
+                rel_pos_bias = self.rel_pos_bias[i]()
+                x = blk(x, rel_pos_bias)
         else:
-            rel_pos_bias = [None for _ in range(len(self.blocks))]
-
-        for i, blk in enumerate(self.blocks):
-            x = blk(x, rel_pos_bias[i])
+            rel_pos_bias = self.rel_pos_bias() if self.rel_pos_bias is not None else None
+            for blk in self.blocks:
+                x = blk(x, rel_pos_bias)
 
         return x
 

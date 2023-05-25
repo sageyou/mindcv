@@ -12,7 +12,7 @@ batch_size: 64
 drop_remainder: True
 
 # augmentation
-scale: [0.08, 1.0]
+scale: [0.67, 1.0]
 ratio: [0.75, 1.333]
 hflip: 0.5
 color_jitter: [0.4, 0.4, 0.4]
@@ -27,7 +27,7 @@ keep_checkpoint_max: 10
 ckpt_save_dir: "./ckpt"
 epoch_size: 800
 dataset_sink_mode: False
-amp_level: "O0"
+amp_level: "O2"
 clip_grad: True
 clip_value: 5.0
 
@@ -36,7 +36,8 @@ loss: "None"
 
 # lr scheduler
 scheduler: "multi_step_decay"
-lr: 2e-4
+multi_step_decay_milestones: [700,]
+lr: 1e-4
 warmup_epochs: 10
 warmup_factor: 5e-3
 decay_rate: 0.1

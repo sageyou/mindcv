@@ -7,6 +7,7 @@ from mindspore.common.initializer import initializer, TruncatedNormal
 from mindspore import nn, ops, Tensor, Parameter
 
 from .beit import VisionTransformerEncoder, LayerNorm
+from .swin_transformer import SwinTransformer
 from .registry import register_model
 from .utils import load_pretrained
 
@@ -93,6 +94,47 @@ class ViTForSimMIM(VisionTransformerEncoder):
         x = ops.reshape(x, (x.shape[0], x.shape[1], self.hw, self.hw))
 
         return x
+        
+
+class SwinTransformerForSimMIM(SwinTransformer):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.in_chans = self.patch_embed.in_chans
+        self.patch_size = self.patch_embed.patch_size[0]
+        self.mask_token = Parameter(initializer(TruncatedNormal(0.02), (1, 1, self.embed_dim)))
+
+    def no_weight_decay(self):
+        return super().no_weight_decay() | {'mask_token'}
+
+    def forward_features(self, x, mask):
+        x = self.patch_embed(x)
+
+        bsz, seq_len, _ = x.shape
+        mask_tokens = ops.broadcast_to(self.mask_token, (bsz, seq_len, -1))
+        mask = ops.reshape(mask, (bsz, -1))
+        w = ops.expand_dims(mask, axis=-1).astype(mask_tokens.dtype)
+        x = x * (1.0 - w) + mask_tokens * w
+
+        if self.ape:
+            x = x + self.absolute_pos_embed
+        x = self.pos_drop(x)
+
+        for layer in self.layers:
+            x = layer(x)
+
+        return x
+
+    def construct(self, x, mask):
+        x = self.forward_features(x, mask)
+        x = self.norm(x)
+
+        x = ops.transpose(x, (0, 2, 1))
+        bsz, chn, length = x.shape
+
+        h = w = int(length ** 0.5)
+        x = ops.reshape(x, (bsz, chn, h, w))
+
+        return x
 
 
 class PixelShuffle(nn.Cell):
@@ -177,6 +219,19 @@ def simmim_vit_16_224_pretrain(pretrained=False, **kwargs):
         norm_layer=partial(LayerNorm, epsilon=1e-6), **kwargs
     )
     model = SimMIM(encoder, encoder_stride=16)
+    if pretrained:
+        pass
+    return model
+
+
+@register_model
+def simmim_swin_4_192_pretrain(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs):
+    encoder = SwinTransformerForSimMIM(
+        image_size=192, in_chans=in_channels, num_classes=num_classes, embed_dim=128,
+        depths=[2, 2, 18, 2], num_heads=[4, 8, 16, 32], window_size=6, **kwargs
+    )
+    model = SimMIM(encoder, encoder_stride=32)
+
     if pretrained:
         pass
     return model

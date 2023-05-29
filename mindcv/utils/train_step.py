@@ -11,6 +11,8 @@ from mindspore import Parameter, RowTensor, Tensor, boost, nn, ops
 from mindspore.boost.grad_accumulation import gradient_accumulation_op, gradient_clear_op
 from mindspore.ops import functional as F
 
+from .gradient_accumulation import GradientAccumulation
+
 __all__ = [
     "GradientAccumulation",
     "TrainStep",

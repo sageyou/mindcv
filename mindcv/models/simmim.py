@@ -51,6 +51,7 @@ class ViTForSimMIM(VisionTransformerEncoder):
         )
         self.in_chans = in_chans
         self.patch_size = patch_size
+        self.num_features = embed_dim
         self.hw = int(self.num_patches ** 0.5)
         self.mask_token = Parameter(initializer(TruncatedNormal(0.02), (1, 1, embed_dim)))
         self.norm = norm_layer((embed_dim, ))
@@ -170,7 +171,7 @@ class SimMIM(nn.Cell):
         self.patch_size = encoder.patch_size
 
         self.decoder = nn.Conv2d(
-            in_channels=self.encoder.embed_dim,
+            in_channels=self.encoder.num_features,
             out_channels=self.encoder_stride ** 2 * 3,
             kernel_size=1, has_bias=True, pad_mode='pad'
         )
@@ -226,6 +227,7 @@ def simmim_vit_16_224_pretrain(pretrained=False, **kwargs):
 
 @register_model
 def simmim_swin_4_192_pretrain(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs):
+    kwargs.pop("mask_ratio")
     encoder = SwinTransformerForSimMIM(
         image_size=192, in_chans=in_channels, num_classes=num_classes, embed_dim=128,
         depths=[2, 2, 18, 2], num_heads=[4, 8, 16, 32], window_size=6, **kwargs

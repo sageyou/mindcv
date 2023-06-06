@@ -30,6 +30,7 @@ class ViTForSimMIM(VisionTransformerEncoder):
         use_abs_pos_emb: bool = False,
         use_rel_pos_bias: bool = False,
         use_shared_rel_pos_bias: bool = True,
+        act_layer: nn.Cell = nn.GELU,
         norm_layer: nn.Cell = nn.LayerNorm,
         **kwargs
     ):
@@ -43,6 +44,7 @@ class ViTForSimMIM(VisionTransformerEncoder):
             mlp_ratio=mlp_ratio,
             drop_path_rate=drop_path_rate,
             init_values=init_values,
+            act_layer=act_layer,
             norm_layer=norm_layer,
             use_abs_pos_emb=use_abs_pos_emb,
             use_rel_pos_bias=use_rel_pos_bias,
@@ -217,6 +219,7 @@ class SimMIM(nn.Cell):
 def simmim_vit_16_224_pretrain(pretrained=False, **kwargs):
     encoder = ViTForSimMIM(
         patch_size=16, embed_dim=768, depth=12, num_heads=12,
+        act_layer=partial(nn.GELU, approximate=False),
         norm_layer=partial(LayerNorm, epsilon=1e-6), **kwargs
     )
     model = SimMIM(encoder, encoder_stride=16)

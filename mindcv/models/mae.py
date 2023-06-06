@@ -101,6 +101,7 @@ class MAEForPretrain(VisionTransformerEncoder):
         decoder_embed_dim: int = 512,
         decoder_depth: int = 8,
         decoder_num_heads: int = 16,
+        act_layer: nn.Cell = nn.GELU,
         norm_layer: nn.Cell = nn.LayerNorm,
         norm_pix_loss: bool = True,
         mask_ratio: float = 0.75,
@@ -115,6 +116,7 @@ class MAEForPretrain(VisionTransformerEncoder):
             num_heads=num_heads,
             mlp_ratio=mlp_ratio,
             init_values=None,
+            act_layer=act_layer,
             norm_layer=norm_layer,
             use_abs_pos_emb=True,
             use_rel_pos_bias=False,
@@ -135,12 +137,12 @@ class MAEForPretrain(VisionTransformerEncoder):
 
         decoder_pos_emb = Tensor(get_2d_sincos_pos_embed(decoder_embed_dim, int(self.num_patches ** 0.5), cls_token=True), ms.float32)
         decoder_pos_emb = ops.expand_dims(decoder_pos_emb, axis=0)       
-        self.decoder_pos_emb = Parameter(decoder_pos_emb, requires_grad=False)
+        self.decoder_pos_embed = Parameter(decoder_pos_emb, requires_grad=False)
 
         self.decoder_blocks = nn.CellList([
             Block(
                 dim=decoder_embed_dim, num_heads=decoder_num_heads, qkv_bias=True,
-                mlp_ratio=mlp_ratio, init_values=None, norm_layer=norm_layer,
+                mlp_ratio=mlp_ratio, init_values=None, act_layer=act_layer, norm_layer=norm_layer,
             ) for _ in range(decoder_depth)
         ])
         self.decoder_norm = norm_layer((decoder_embed_dim,))
@@ -206,8 +208,8 @@ class MAEForPretrain(VisionTransformerEncoder):
 
     def apply_masking(self, x, mask):
         D = x.shape[2]
-        _, ids_shuffle = self.sort(mask.astype(ms.float16))
-        _, ids_restore = self.sort(ids_shuffle.astype(ms.float16))
+        _, ids_shuffle = self.sort(mask.astype(ms.float32))
+        _, ids_restore = self.sort(ids_shuffle.astype(ms.float32))
 
         ids_keep = ids_shuffle[:, :self.unmask_len]
         ids_keep = ops.broadcast_to(ops.expand_dims(ids_keep, axis=-1), (-1, -1, D))
@@ -244,6 +246,8 @@ class MAEForPretrain(VisionTransformerEncoder):
         ids_restore = ops.broadcast_to(ops.expand_dims(ids_restore, axis=-1), (-1, -1, D))
         x_ = ops.gather_elements(x_, dim=1, index=ids_restore)
         x = ops.concat((x[:, :1, :], x_), axis=1)
+        
+        x = x + self.decoder_pos_embed
 
         for blk in self.decoder_blocks:
             x = blk(x)
@@ -347,6 +351,7 @@ def mae_b_16_224_pretrain(pretrained=False, **kwargs):
     model = MAEForPretrain(
         patch_size=16, embed_dim=768, depth=12, num_heads=12,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+        act_layer=partial(nn.GELU, approximate=False),
         norm_layer=partial(nn.LayerNorm, epsilon=1e-6), **kwargs
     )
     if pretrained:
@@ -359,6 +364,7 @@ def mae_l_16_224_pretrain(pretrained=False, **kwargs):
     model = MAEForPretrain(
         patch_size=16, embed_dim=1024, depth=24, num_heads=16,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+        act_layer=partial(nn.GELU, approximate=False),
         norm_layer=partial(nn.LayerNorm, epsilon=1e-6), **kwargs
     )
     if pretrained:
@@ -371,6 +377,7 @@ def mae_h_16_224_pretrain(pretrained=False, **kwargs):
     model = MAEForPretrain(
         patch_size=16, embed_dim=1280, depth=32, num_heads=16,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+        act_layer=partial(nn.GELU, approximate=False),
         norm_layer=partial(nn.LayerNorm, epsilon=1e-6), **kwargs
     )
     if pretrained:

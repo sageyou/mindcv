@@ -1,15 +1,13 @@
-import numpy as np
 from typing import Optional
 from functools import partial
 
 import mindspore as ms
 from mindspore.common.initializer import initializer, TruncatedNormal
-from mindspore import nn, ops, Tensor, Parameter
+from mindspore import nn, ops, Parameter
 
-from .beit import VisionTransformerEncoder, LayerNorm
+from .vit_encoder import LayerNorm, VisionTransformerEncoder
 from .swin_transformer import SwinTransformer
 from .registry import register_model
-from .utils import load_pretrained
 
 __all__ = [
     "simmim_vit_16_224_pretrain",

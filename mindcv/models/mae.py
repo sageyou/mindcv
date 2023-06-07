@@ -6,7 +6,7 @@ import mindspore as ms
 from mindspore.common.initializer import initializer, Normal
 from mindspore import nn, ops, Tensor, Parameter
 
-from .beit import Block, VisionTransformerEncoder
+from .vit_encoder import LayerNorm, Block, VisionTransformerEncoder
 from .registry import register_model
 from .utils import load_pretrained
 
@@ -352,7 +352,7 @@ def mae_b_16_224_pretrain(pretrained=False, **kwargs):
         patch_size=16, embed_dim=768, depth=12, num_heads=12,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
         act_layer=partial(nn.GELU, approximate=False),
-        norm_layer=partial(nn.LayerNorm, epsilon=1e-6), **kwargs
+        norm_layer=partial(LayerNorm, epsilon=1e-6), **kwargs
     )
     if pretrained:
         pass
@@ -365,7 +365,7 @@ def mae_l_16_224_pretrain(pretrained=False, **kwargs):
         patch_size=16, embed_dim=1024, depth=24, num_heads=16,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
         act_layer=partial(nn.GELU, approximate=False),
-        norm_layer=partial(nn.LayerNorm, epsilon=1e-6), **kwargs
+        norm_layer=partial(LayerNorm, epsilon=1e-6), **kwargs
     )
     if pretrained:
         pass
@@ -378,7 +378,7 @@ def mae_h_16_224_pretrain(pretrained=False, **kwargs):
         patch_size=16, embed_dim=1280, depth=32, num_heads=16,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
         act_layer=partial(nn.GELU, approximate=False),
-        norm_layer=partial(nn.LayerNorm, epsilon=1e-6), **kwargs
+        norm_layer=partial(LayerNorm, epsilon=1e-6), **kwargs
     )
     if pretrained:
         pass
@@ -390,7 +390,7 @@ def mae_b_16_224_finetune(pretrained=True, in_chans=3, num_classes=1000, **kwarg
     default_cfg = default_cfgs["mae_b_16_224_finetune"]
     model = MAEForFinetune(
         patch_size=16, in_chans=in_chans, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,
-        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+        qkv_bias=True, norm_layer=partial(LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
     )
     if pretrained:
         load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
@@ -402,7 +402,7 @@ def mae_l_16_224_finetune(pretrained=True, in_chans=3, num_classes=1000, **kwarg
     default_cfg = default_cfgs["mae_l_16_224_finetune"]
     model = MAEForFinetune(
         patch_size=16, in_chans=in_chans, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4,
-        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+        qkv_bias=True, norm_layer=partial(LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
     )
     if pretrained:
         load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)
@@ -414,7 +414,7 @@ def mae_h_14_224_finetune(pretrained=True, in_chans=3, num_classes=1000, **kwarg
     default_cfg = default_cfgs["mae_h_14_224_finetune"]
     model = MAEForFinetune(
         patch_size=14, in_chans=in_chans, embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4,
-        qkv_bias=True, norm_layer=partial(nn.LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
+        qkv_bias=True, norm_layer=partial(LayerNorm, epsilon=1e-6), num_classes=num_classes, **kwargs
     )
     if pretrained:
         load_pretrained(model, default_cfg, num_classes=num_classes, in_channels=in_chans)

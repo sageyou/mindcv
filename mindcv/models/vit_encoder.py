@@ -48,7 +48,7 @@ class RelativePositionBiasWithCLS(nn.Cell):
         num_relative_distance = (2 * window_size[0] - 1) * (2 * window_size[1] - 1) + 3
         # 3: cls to token, token to cls, cls to cls
         self.relative_position_bias_table = Parameter(
-            Tensor(np.zeros((num_relative_distance, num_heads)), dtype=ms.float32)
+            Tensor(np.zeros((num_relative_distance, num_heads)), dtype=ms.float16)
         )
         coords_h = np.arange(window_size[0]).reshape(window_size[0], 1).repeat(window_size[1], 1).reshape(1, -1)
         coords_w = np.arange(window_size[1]).reshape(1, window_size[1]).repeat(window_size[0], 0).reshape(1, -1)
@@ -68,7 +68,7 @@ class RelativePositionBiasWithCLS(nn.Cell):
         relative_position_index[0, 0] = num_relative_distance - 1
         relative_position_index = Tensor(relative_position_index.reshape(-1)) 
 
-        self.one_hot = nn.OneHot(axis=-1, depth=num_relative_distance)
+        self.one_hot = nn.OneHot(axis=-1, depth=num_relative_distance, dtype=ms.float16)
         self.relative_position_index = Parameter(self.one_hot(relative_position_index), requires_grad=False)
 
     def construct(self):

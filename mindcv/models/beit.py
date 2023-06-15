@@ -7,7 +7,7 @@ from mindspore import nn, ops, Parameter
 
 from .vit_encoder import LayerNorm, VisionTransformerEncoder
 from .registry import register_model
-from .utils import load_pretrained
+from .helpers import load_pretrained
 
 __all__ = [
     "dall_e",

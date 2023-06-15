@@ -8,7 +8,7 @@ from mindspore import nn, ops, Tensor, Parameter
 
 from .vit_encoder import LayerNorm, Block, VisionTransformerEncoder
 from .registry import register_model
-from .utils import load_pretrained
+from .helpers import load_pretrained
 
 __all__ = [
     "mae_b_16_224_pretrain",

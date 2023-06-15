@@ -207,22 +207,21 @@ def train(args):
     ), "ckpt_save_policy is top_k, val_while_train must be True."
     state_cb = StateMonitor(
         trainer,
-        summary_dir=summary_dir,
+        model_name=args.model,
+        model_ema=args.ema,
+        last_epoch=begin_epoch,
+        dataset_sink_mode=args.dataset_sink_mode,
         dataset_val=loader_eval,
-        val_interval=args.val_interval,
         metric_name=[],
-        ckpt_dir=args.ckpt_save_dir,
+        val_interval=args.val_interval,
+        ckpt_save_dir=args.ckpt_save_dir,
         ckpt_save_interval=args.ckpt_save_interval,
-        best_ckpt_name=args.model + "_best.ckpt",
+        ckpt_save_policy=args.ckpt_save_policy,
+        ckpt_keep_max=args.keep_checkpoint_max,
+        summary_dir=summary_dir,
+        log_interval=args.log_interval,
         rank_id=rank_id,
         device_num=device_num,
-        log_interval=args.log_interval,
-        keep_checkpoint_max=args.keep_checkpoint_max,
-        model_name=args.model,
-        last_epoch=begin_epoch,
-        ckpt_save_policy=args.ckpt_save_policy,
-        ema=args.ema,
-        dataset_sink_mode=args.dataset_sink_mode,
     )
 
     callbacks = [state_cb]

@@ -11,18 +11,18 @@ from mindcv.loss import create_loss
 from mindcv.models import create_model
 from mindcv.optim import create_pretrain_optimizer
 from mindcv.scheduler import create_scheduler
-from mindcv.utils import AllReduceSum, StateMonitor, create_trainer, get_metrics, set_seed
+from mindcv.utils import (
+    AllReduceSum,
+    StateMonitor,
+    create_trainer,
+    require_customized_train_step,
+    set_logger,
+    set_seed,
+)
 
-from config import parse_args  # isort: skip
+from config import parse_args, save_args  # isort: skip
 
-# TODO: arg parser already has a logger
-logger = logging.getLogger("pre-train")
-logger.setLevel(logging.INFO)
-h1 = logging.StreamHandler()
-formatter1 = logging.Formatter("%(message)s")
-logger.addHandler(h1)
-h1.setFormatter(formatter1)
-
+logger = logging.getLogger("mindcv.pre-train")
 
 def train(args):
     """main train function"""
@@ -43,6 +43,11 @@ def train(args):
         rank_id = None
 
     set_seed(args.seed)
+    set_logger(name="mindcv", output_dir=args.ckpt_save_dir, rank=rank_id, color=False)
+    logger.info(
+        "We recommend installing `termcolor` via `pip install termcolor` "
+        "and setup logger by `set_logger(..., color=True)`"
+    )
 
     # create dataset
     dataset_train = create_dataset(
@@ -68,7 +73,7 @@ def train(args):
         ratio=args.ratio,
         hflip=args.hflip,
         color_jitter=args.color_jitter,
-        interpolations=args.pretrain_interpolations,
+        interpolations=args.pretrain_interpolations.copy(),
         mean=args.mean,
         std=args.std,
         mask_type=args.mask_type,
@@ -153,7 +158,11 @@ def train(args):
 
     # create optimizer
     # TODO: consistent naming opt, name, dataset_name
-    if args.loss_scale_type == "fixed" and args.drop_overflow_update is False:
+    if (
+        args.loss_scale_type == "fixed"
+        and args.drop_overflow_update is False
+        and not require_customized_train_step(args.ema, args.clip_grad, args.gradient_accumulation_steps)
+    ):
         optimizer_loss_scale = args.loss_scale
     else:
         optimizer_loss_scale = 1.0
@@ -225,33 +234,37 @@ def train(args):
     )
 
     callbacks = [state_cb]
-    # log
-    if rank_id in [None, 0]:
-        logger.info("-" * 40)
-        logger.info(
-            f"Num devices: {device_num if device_num is not None else 1} \n"
-            f"Distributed mode: {args.distribute} \n"
-            f"Num training samples: {train_count}"
-        )
-        if args.val_while_train:
-            logger.info(f"Num validation samples: {eval_count}")
-        logger.info(
-            f"Num batches: {num_batches} \n"
-            f"Batch size: {args.batch_size} \n"
-            f"Auto augment: {args.auto_augment} \n"
-            f"Model: {args.model} \n"
-            f"Model param: {num_params} \n"
-            f"Num epochs: {args.epoch_size} \n"
-            f"Optimizer: {args.opt} \n"
-            f"LR: {args.lr} \n"
-            f"LR Scheduler: {args.scheduler}"
-        )
-        logger.info("-" * 40)
+    essential_cfg_msg = "\n".join(
+        [
+            "Essential Experiment Configurations:",
+            f"MindSpore mode[GRAPH(0)/PYNATIVE(1)]: {args.mode}",
+            f"Distributed mode: {args.distribute}",
+            f"Number of devices: {device_num if device_num is not None else 1}",
+            f"Number of training samples: {train_count}",
+            f"Number of batches: {num_batches}",
+            f"Batch size: {args.batch_size}",
+            f"Auto augment: {args.auto_augment}",
+            f"MixUp: {args.mixup}",
+            f"CutMix: {args.cutmix}",
+            f"Model: {args.model}",
+            f"Model parameters: {num_params}",
+            f"Number of epochs: {args.epoch_size}",
+            f"Optimizer: {args.opt}",
+            f"Learning rate: {args.lr}",
+            f"LR Scheduler: {args.scheduler}",
+            f"Momentum: {args.momentum}",
+            f"Weight decay: {args.weight_decay}",
+            f"Auto mixed precision: {args.amp_level}",
+            f"Loss scale: {args.loss_scale}({args.loss_scale_type})",
+        ]
+    )
+    logger.info(essential_cfg_msg)
+    save_args(args, os.path.join(args.ckpt_save_dir, f"{args.model}.yaml"), rank_id)
 
-        if args.ckpt_path != "":
-            logger.info(f"Resume training from {args.ckpt_path}, last step: {begin_step}, last epoch: {begin_epoch}")
-        else:
-            logger.info("Start training")
+    if args.ckpt_path != "":
+        logger.info(f"Resume training from {args.ckpt_path}, last step: {begin_step}, last epoch: {begin_epoch}")
+    else:
+        logger.info("Start training")
 
     trainer.train(args.epoch_size, loader_train, callbacks=callbacks, dataset_sink_mode=args.dataset_sink_mode)
 

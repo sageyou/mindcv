@@ -5,11 +5,14 @@ import collections.abc
 import difflib
 import logging
 import os
+import numpy as np
 from copy import deepcopy
 from itertools import repeat
 from typing import Callable, Dict, List, Optional
+from scipy import interpolate
 
 import mindspore.nn as nn
+from mindspore import ops, Tensor, Parameter
 from mindspore import load_checkpoint, load_param_into_net
 
 from ..utils.download import DownLoad, get_default_download_root
@@ -198,3 +201,107 @@ def build_model_with_cfg(
             raise RuntimeError(f"`feature_only` is not implemented for `{model_cls.__name__}` model.") from e
 
     return model
+
+
+def interpolate_relative_position_bias(checkpoint_params, network):
+    if "rel_pos_bias.relative_position_bias_table" in checkpoint_params \
+        and isinstance(network.rel_pos_bias, nn.CellList):
+
+        num_layers = network.get_num_layers()
+        rel_pos_bias = checkpoint_params["rel_pos_bias.relative_position_bias_table"]
+        for i in range(num_layers):
+            checkpoint_params[f"rel_pos_bias.{i}.relative_position_bias_table"] = rel_pos_bias.clone()
+        checkpoint_params.pop("rel_pos_bias.relative_position_bias_table")
+
+    elif "rel_pos_bias.0.relative_position_bias_table" in checkpoint_params \
+        and not isinstance(network.rel_pos_bias, nn.CellList) \
+        and isinstance(network.rel_pos_bias, nn.Cell):
+
+        raise NotImplementedError("Converting multiple relative position bias to one is not supported.")
+
+    all_keys = list(checkpoint_params.keys())
+    for key in all_keys:
+        if "relative_position_index" in key:
+            checkpoint_params.pop(key)
+
+        if "relative_position_bias_table" in key:
+            bias_table = checkpoint_params[key]
+            src_num_pos, num_attn_heads = bias_table.shape
+            dst_num_pos, _ = network.parameters_dict()[key].shape
+            dst_patch_shape = network.patch_embed.patches_resolution
+            if dst_patch_shape[0] != dst_patch_shape[1]:
+                raise NotImplementedError("Unsquared patch is not supported.")
+
+            num_extra_tokens = dst_num_pos - (dst_patch_shape[0] * 2 - 1) * (dst_patch_shape[1] * 2 - 1)
+            src_size = int((src_num_pos - num_extra_tokens) ** 0.5)
+            dst_size = int((dst_num_pos - num_extra_tokens) ** 0.5)
+            if src_size != dst_size:
+                print("Position interpolate for %s from %dx%d to %dx%d" % \
+                      (key, src_size, src_size, dst_size, dst_size))
+
+                extra_tokens = bias_table[-num_extra_tokens:, :]
+                rel_pos_bias = bias_table[:-num_extra_tokens, :]
+
+                def geometric_progression(a, r, n):
+                    return a * (1.0 - r ** n) / (1.0 - r)
+
+                left, right = 1.01, 1.5
+                while right - left > 1e-6:
+                    q = (left + right) / 2.0
+                    gp = geometric_progression(1, q, src_size // 2)
+                    if gp > dst_size // 2:
+                        right = q
+                    else:
+                        left = q
+
+                dis = []
+                cur = 1
+                for i in range(src_size // 2):
+                    dis.append(cur)
+                    cur += q ** (i + 1)
+
+                r_ids = [-_ for _ in reversed(dis)]
+                x = r_ids + [0] + dis
+                y = r_ids + [0] + dis
+
+                t = dst_size // 2.0
+                dx = np.arange(-t, t + 0.1, 1.0)
+                dy = np.arange(-t, t + 0.1, 1.0)
+
+                all_rel_pos_bias = []
+                for i in range(num_attn_heads):
+                    z = ops.reshape(rel_pos_bias[:, i], (src_size, src_size)).asnumpy()
+                    f = interpolate.interp2d(x, y, z, kind="cubic")
+                    all_rel_pos_bias.append(ops.reshape(Tensor(f(dx, dy), dtype=bias_table.dtype), (-1, 1)))
+
+                rel_pos_bias = ops.concat(all_rel_pos_bias, axis=-1)
+                new_rel_pos_bias = ops.concat((rel_pos_bias, extra_tokens), axis=0)
+                checkpoint_params[key] = Parameter(new_rel_pos_bias)
+
+    return checkpoint_params
+
+
+def interpolate_pos_embed(checkpoint_params, network):
+    pos_embed_checkpoint = checkpoint_params["pos_embed"]
+    embedding_size = pos_embed_checkpoint.shape[-1]
+    num_patches = network.patch_embed.num_patches
+    num_extra_tokens = network.pos_embed.shape[-2] - num_patches
+
+    orig_size = int((pos_embed_checkpoint.shape[-2] - num_extra_tokens) ** 0.5)
+    new_size = int(num_patches ** 0.5)
+    # class_token and dist_token are kept unchanged
+    if orig_size != new_size:
+        print("Position interpolate from %dx%d to %dx%d" % (orig_size, orig_size, new_size, new_size))
+        extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
+        # only the position tokens are interpolated
+        pos_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
+        pos_tokens = ops.reshape(pos_tokens, (-1, orig_size, orig_size, embedding_size))
+        pos_tokens = ops.transpose(pos_tokens, (0, 3, 1, 2))
+        pos_tokens = ops.interpolate(pos_tokens, size=(new_size, new_size), 
+                                     mode='bicubic', align_corners=False) # require MindSpore 2.0
+        pos_tokens = ops.transpose(pos_tokens, (0, 2, 3, 1))
+        pos_tokens = ops.reshape(pos_tokens, (-1, new_size * new_size, embedding_size))
+        new_pos_embed = ops.concat((extra_tokens, pos_tokens), axis=1)
+        checkpoint_params['pos_embed'] = Parameter(new_pos_embed)
+        
+    return checkpoint_params

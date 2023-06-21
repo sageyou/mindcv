@@ -1,6 +1,7 @@
 """ optim factory """
 import os
 from typing import Optional
+from functools import partial
 
 from mindspore import load_checkpoint, load_param_into_net, nn
 
@@ -79,102 +80,12 @@ def create_optimizer(
     # if lr is not None:
     #    opt_args.setdefault('lr', lr)
 
-    # non-adaptive: SGD, momentum, and nesterov
-    if opt == "sgd":
-        # note: nn.Momentum may perform better if momentum > 0.
-        optimizer = nn.SGD(
-            params=params,
-            learning_rate=lr,
-            momentum=momentum,
-            weight_decay=weight_decay,
-            nesterov=nesterov,
-            loss_scale=loss_scale,
-            **opt_args,
-        )
-    elif opt in ["momentum", "nesterov"]:
-        optimizer = nn.Momentum(
-            params=params,
-            learning_rate=lr,
-            momentum=momentum,
-            weight_decay=weight_decay,
-            use_nesterov=nesterov,
-            loss_scale=loss_scale,
-        )
-    # adaptive
-    elif opt == "adam":
-        optimizer = nn.Adam(
-            params=params,
-            learning_rate=lr,
-            weight_decay=weight_decay,
-            loss_scale=loss_scale,
-            use_nesterov=nesterov,
-            **opt_args,
-        )
-    elif opt == "adamw":
-        optimizer = AdamW(
-            params=params,
-            learning_rate=lr,
-            weight_decay=weight_decay,
-            loss_scale=loss_scale,
-            **opt_args,
-        )
-    elif opt == "lion":
-        optimizer = Lion(
-            params=params,
-            learning_rate=lr,
-            weight_decay=weight_decay,
-            loss_scale=loss_scale,
-            **opt_args,
-        )
-    elif opt == "nadam":
-        optimizer = NAdam(
-            params=params,
-            learning_rate=lr,
-            weight_decay=weight_decay,
-            loss_scale=loss_scale,
-            schedule_decay=schedule_decay,
-            **opt_args,
-        )
-    elif opt == "adan":
-        optimizer = Adan(
-            params=params,
-            learning_rate=lr,
-            weight_decay=weight_decay,
-            loss_scale=loss_scale,
-            **opt_args,
-        )
-    elif opt == "rmsprop":
-        optimizer = nn.RMSProp(
-            params=params,
-            learning_rate=lr,
-            momentum=momentum,
-            weight_decay=weight_decay,
-            loss_scale=loss_scale,
-            epsilon=eps,
-            **opt_args,
-        )
-    elif opt == "adagrad":
-        optimizer = nn.Adagrad(
-            params=params,
-            learning_rate=lr,
-            weight_decay=weight_decay,
-            loss_scale=loss_scale,
-            **opt_args,
-        )
-    elif opt == "lamb":
-        assert loss_scale == 1.0, "Loss scaler is not supported by Lamb optimizer"
-        optimizer = nn.Lamb(
-            params=params,
-            learning_rate=lr,
-            weight_decay=weight_decay,
-            **opt_args,
-        )
-    else:
-        raise ValueError(f"Invalid optimizer: {opt}")
-
-    if os.path.exists(checkpoint_path):
-        param_dict = load_checkpoint(checkpoint_path)
-        load_param_into_net(optimizer, param_dict)
+    optimizer = get_optimizer(
+        params, opt_args, opt,
+        lr, weight_decay, momentum,
+        nesterov, loss_scale, schedule_decay,
+        checkpoint_path, eps
+    )
 
     return optimizer
 
@@ -229,6 +140,160 @@ def create_pretrain_optimizer(
     # if lr is not None:
     #    opt_args.setdefault('lr', lr)
 
+    optimizer = get_optimizer(
+        params, opt_args, opt,
+        lr, weight_decay, momentum,
+        nesterov, loss_scale, schedule_decay,
+        checkpoint_path, eps
+    )
+
+    return optimizer
+
+
+def get_vit_layer(name, num_layers):
+    if name in ("cls_token", "mask_token", "pos_embed"):
+        return 0
+    elif name.startswith("patch_embed"):
+        return 0
+    elif name.startswith("rel_pos_bias"):
+        return num_layers - 1
+    elif name.startswith("blocks"):
+        layer_id = int(name.split('.')[1])
+        return layer_id + 1
+    else:
+        return num_layers - 1
+
+
+def get_swin_layer(name, num_layers, depths):
+    if name in ("mask_token",):
+        return 0
+    elif name.startswith("patch_embed"):
+        return 0
+    elif name.startswith("layers"):
+        layer_id = int(name.split('.')[1])
+        block_id = name.split('.')[3]
+        if block_id == 'reduction' or block_id == 'norm':
+            return sum(depths[:layer_id + 1])
+        layer_id = sum(depths[:layer_id]) + int(block_id)
+        return layer_id + 1
+    else:
+        return num_layers - 1
+
+
+def get_finetune_param_groups(
+    model,
+    lr,
+    weight_decay,
+    get_layer_func,
+    scales,
+    skip,
+    skip_keywords,
+):
+    parameter_group_names = {}
+    parameter_group_vars = {}
+
+    for name, param in model.trainable_params():
+        if len(param.shape) == 1 or name.endswith(".bias") or (name in skip) or \
+                check_keywords_in_name(name, skip_keywords):
+            group_name = "no_decay"
+            this_weight_decay = 0.
+        else:
+            group_name = "decay"
+            this_weight_decay = weight_decay
+        if get_layer_func is not None:
+            layer_id = get_layer_func(name)
+            group_name = "layer_%d_%s" % (layer_id, group_name)
+        else:
+            layer_id = None
+
+        if group_name not in parameter_group_names:
+            if scales is not None:
+                scale = scales[layer_id]
+            else:
+                scale = 1.
+
+            parameter_group_names[group_name] = {
+                "group_name": group_name,
+                "weight_decay": this_weight_decay,
+                "params": [],
+                "lr": lr * scale,
+            }
+            parameter_group_vars[group_name] = {
+                "group_name": group_name,
+                "weight_decay": this_weight_decay,
+                "params": [],
+                "lr": lr * scale,
+            }
+
+        parameter_group_vars[group_name]["params"].append(param)
+        parameter_group_names[group_name]["params"].append(name)
+
+    return list(parameter_group_vars.values())
+
+
+def create_finetune_optimizer(
+    model,
+    opt: str = "adam",
+    lr: Optional[float] = 1e-3,
+    weight_decay: float = 0,
+    momentum: float = 0.9,
+    nesterov: bool = False,
+    filter_bias_and_bn: bool = True,
+    loss_scale: float = 1.0,
+    schedule_decay: float = 4e-3,
+    checkpoint_path: str = "",
+    eps: float = 1e-10,
+    scale: float = 0.75,
+    **kwargs,
+):
+    if hasattr(model, "get_depths"):
+        depths = model.get_depths()
+        num_layers = model.get_num_layers()
+        get_layer_func = partial(get_swin_layer, num_layers=num_layers + 2, depths=depths)
+    elif hasattr(model, "get_num_layers"):
+        num_layers = model.get_num_layers()
+        get_layer_func = partial(get_vit_layer, num_layers=num_layers + 2)
+    else:
+        raise NotImplementedError()
+
+    scales = list(scale ** i for i in reversed(range(num_layers + 2)))
+
+    skip = {}
+    skip_keywords = {}
+    if hasattr(model, 'no_weight_decay'):
+        skip = model.no_weight_decay()
+    if hasattr(model, 'no_weight_decay_keywords'):
+        skip_keywords = model.no_weight_decay_keywords()
+
+    params = get_finetune_param_groups(model, lr, weight_decay, get_layer_func, scales, skip, skip_keywords)
+
+    opt_args = dict(**kwargs)
+    # if lr is not None:
+    #    opt_args.setdefault('lr', lr)
+
+    optimizer = get_optimizer(
+        params, opt_args, opt,
+        lr, weight_decay, momentum,
+        nesterov, loss_scale, schedule_decay,
+        checkpoint_path, eps
+    )
+
+    return optimizer
+
+
+def get_optimizer(
+    params,
+    opt_args,
+    opt: str = "adam",
+    lr: Optional[float] = 1e-3,
+    weight_decay: float = 0,
+    momentum: float = 0.9,
+    nesterov: bool = False,
+    loss_scale: float = 1.0,
+    schedule_decay: float = 4e-3,
+    checkpoint_path: str = "",
+    eps: float = 1e-10,
+):
     # non-adaptive: SGD, momentum, and nesterov
     if opt == "sgd":
         # note: nn.Momentum may perform better if momentum > 0.

@@ -612,6 +612,7 @@ class SwinTransformer(nn.Cell):
 
         self.num_classes = num_classes
         self.num_layers = len(depths)
+        self.depths = depths
         self.embed_dim = embed_dim
         self.ape = ape
         self.patch_norm = patch_norm
@@ -675,6 +676,12 @@ class SwinTransformer(nn.Cell):
 
     def no_weight_decay_keywords(self) -> None:
         return {"relative_position_bias_table"}
+
+    def get_num_layers(self) -> int:
+        return sum(self.depths)
+
+    def get_depths(self) -> List:
+        return self.depths
 
     def forward_head(self, x: Tensor) -> Tensor:
         x = self.classifier(x)

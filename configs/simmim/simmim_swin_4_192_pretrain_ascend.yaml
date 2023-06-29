@@ -25,8 +25,8 @@ ckpt_path: ""
 keep_checkpoint_max: 10
 ckpt_save_dir: "./ckpt"
 epoch_size: 800
-dataset_sink_mode: False
-amp_level: "O0"
+dataset_sink_mode: True
+amp_level: "O2"
 clip_grad: True
 clip_value: 5.0
 

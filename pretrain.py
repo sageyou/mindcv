@@ -29,7 +29,7 @@ def train(args):
 
     ms.set_context(mode=args.mode)
     if args.distribute:
-        init('nccl')
+        init()
         device_num = get_group_size()
         rank_id = get_rank()
         ms.set_auto_parallel_context(

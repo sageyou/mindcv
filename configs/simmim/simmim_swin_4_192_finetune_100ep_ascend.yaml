@@ -1,0 +1,62 @@
+# system
+mode: 0
+distribute: True
+num_parallel_workers: 8
+
+# dataset
+dataset: "imagenet"
+data_dir: "/path/to/imagenet"
+shuffle: True
+dataset_download: False
+batch_size: 64
+drop_remainder: True
+
+# augmentation
+image_resize: 192
+scale: [0.67, 1.0]
+ratio: [0.75, 1.333]
+hflip: 0.5
+interpolation: "bicubic"
+re_prob: 0.25
+mixup: 0.8
+cutmix: 1.0
+cutmix_prob: 1.0
+crop_pct: 0.875
+color_jitter: [0.4, 0.4, 0.4]
+auto_augment: "randaug-m9-mstd0.5-inc1"
+
+# model
+model: "simmim_swin_4_192_finetune"
+num_classes: 1000
+pretrained: False
+drop_rate: 0.0
+drop_path_rate: 0.1
+pretrained: False
+ckpt_path: "./ckpt/simmim_swin_4_192_pretrain-100_2502.ckpt"
+keep_checkpoint_max: 10
+ckpt_save_dir: "./ckpt"
+epoch_size: 100
+dataset_sink_mode: False
+amp_level: "O0"
+clip_grad: True
+clip_value: 5.0
+
+# loss
+loss: "CE"
+loss_scale: 1024.0
+label_smoothing: 0.1
+
+# lr scheduler
+scheduler: "warmup_cosine_decay"
+lr: 1.25e-3
+warmup_epochs: 20
+warmup_factor: 2e-4
+min_lr: 2.5e-7
+decay_epochs: 80
+lr_epoch_stair: False
+
+# optimizer
+opt: "adamw"
+weight_decay: 0.05
+filter_bias_and_bn: True
+use_nesterov: False

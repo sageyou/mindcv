@@ -12,7 +12,8 @@ from .nadam import NAdam
 
 __all__ = [
     "create_optimizer",
-    "create_pretrain_optimizer"
+    "create_pretrain_optimizer",
+    "create_finetune_optimizer"
 ]
 
 
@@ -192,16 +193,16 @@ def get_finetune_param_groups(
     parameter_group_names = {}
     parameter_group_vars = {}
 
-    for name, param in model.trainable_params():
-        if len(param.shape) == 1 or name.endswith(".bias") or (name in skip) or \
-                check_keywords_in_name(name, skip_keywords):
+    for param in model.trainable_params():
+        if len(param.shape) == 1 or param.name.endswith('.bias') or (param.name in skip) or \
+            check_keywords_in_name(param.name, skip_keywords):
             group_name = "no_decay"
             this_weight_decay = 0.
         else:
             group_name = "decay"
             this_weight_decay = weight_decay
         if get_layer_func is not None:
-            layer_id = get_layer_func(name)
+            layer_id = get_layer_func(param.name)
             group_name = "layer_%d_%s" % (layer_id, group_name)
         else:
             layer_id = None
@@ -213,20 +214,18 @@ def get_finetune_param_groups(
                 scale = 1.
 
             parameter_group_names[group_name] = {
-                "group_name": group_name,
                 "weight_decay": this_weight_decay,
                 "params": [],
-                "lr": lr * scale,
+                "lr": [l * scale for l in lr],
             }
             parameter_group_vars[group_name] = {
-                "group_name": group_name,
                 "weight_decay": this_weight_decay,
                 "params": [],
-                "lr": lr * scale,
+                "lr": [l * scale for l in lr],
             }
 
         parameter_group_vars[group_name]["params"].append(param)
-        parameter_group_names[group_name]["params"].append(name)
+        parameter_group_names[group_name]["params"].append(param.name)
 
     return list(parameter_group_vars.values())
 

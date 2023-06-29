@@ -1,6 +1,6 @@
 """ optim init """
 from . import optim_factory
-from .optim_factory import create_optimizer, create_pretrain_optimizer
+from .optim_factory import create_optimizer, create_pretrain_optimizer, create_finetune_optimizer
 
 __all__ = []
 __all__.extend(optim_factory.__all__)

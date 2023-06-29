@@ -238,3 +238,15 @@ def simmim_swin_4_192_pretrain(pretrained: bool = False, num_classes: int = 1000
     if pretrained:
         pass
     return model
+
+
+@register_model
+def simmim_swin_4_192_finetune(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs):
+    model = SwinTransformer(
+        image_size=192, in_chans=in_channels, num_classes=num_classes, embed_dim=128,
+        depths=[2, 2, 18, 2], num_heads=[4, 8, 16, 32], window_size=6, **kwargs
+    )
+
+    if pretrained:
+        pass
+    return model

@@ -114,7 +114,6 @@ class Attention(nn.Cell):
         self.unstack = ops.Unstack(axis=0)
         self.attn_matmul_v = ops.BatchMatMul()
         self.q_matmul_k = ops.BatchMatMul(transpose_b=True)
-        self.softmax = nn.Softmax(axis=-1)
 
     def construct(self, x, rel_pos_bias=None):
         b, n, c = x.shape
@@ -129,7 +128,8 @@ class Attention(nn.Cell):
         if rel_pos_bias is not None:
             attn  = attn + rel_pos_bias
 
-        attn = self.softmax(attn)
+        attn = attn.astype(ms.float32)
+        attn = ops.softmax(attn, axis=-1)
         attn = self.attn_drop(attn)
 
         out = self.attn_matmul_v(attn, v)

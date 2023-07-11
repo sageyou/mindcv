@@ -216,7 +216,7 @@ def train(args):
         loss_scale=optimizer_loss_scale,
         checkpoint_path=opt_ckpt_path,
         eps=args.eps,
-        scale=0.75
+        scale=args.layer_decay
     )
 
     # Define eval metrics.

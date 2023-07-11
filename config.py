@@ -216,6 +216,8 @@ def create_parser():
                        help='Num of cycles for cosine decay and cyclic (default=1)')
     group.add_argument('--cycle_decay', type=float, default=1.0,
                        help='Decay rate of lr max in each cosine cycle (default=1.0)')
+    group.add_argument('--layer_decay', type=float, default=None,
+                       help='layer(model) decay rate of lr (default=None)')
 
     # Loss parameters
     group = parser.add_argument_group('Loss parameters')

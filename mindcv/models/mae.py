@@ -297,7 +297,6 @@ class MAEForFinetune(VisionTransformerEncoder):
         proj_drop_rate: float = 0.,
         attn_drop_rate: float = 0.,
         drop_path_rate: float = 0.,
-        init_values: Optional[float] = 0.1,
         act_layer: nn.Cell = nn.GELU,
         norm_layer: nn.Cell = nn.LayerNorm,
         num_classes: int = 1000,
@@ -319,7 +318,7 @@ class MAEForFinetune(VisionTransformerEncoder):
             proj_drop_rate=proj_drop_rate,
             attn_drop_rate=attn_drop_rate,
             drop_path_rate=drop_path_rate,
-            init_values=init_values,
+            init_values=None,
             act_layer=act_layer,
             norm_layer=norm_layer,
             use_abs_pos_emb=True,
@@ -328,8 +327,11 @@ class MAEForFinetune(VisionTransformerEncoder):
             **kwargs
         )
         self.use_mean_pooling = use_mean_pooling
+        if self.use_mean_pooling:
+            self.fc_norm = norm_layer((embed_dim))
+        else:
+            self.norm = norm_layer((embed_dim,))
         self.head = nn.Dense(embed_dim, num_classes, weight_init='TruncatedNormal')
-        self.norm = norm_layer((embed_dim,))
 
         self._init_weights()
         self._fix_init_weights()
@@ -338,7 +340,7 @@ class MAEForFinetune(VisionTransformerEncoder):
         x = self.forward_features(x)
         if self.use_mean_pooling:
             x = x[:, 1:].mean(axis=1)
-            x = self.norm(x)
+            x = self.fc_norm(x)
         else:
             x = self.norm(x)
             x = x[:, 0]

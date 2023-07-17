@@ -297,6 +297,7 @@ class VisionTransformerEncoder(nn.Cell):
         bsz = x.shape[0]
 
         cls_token = ops.broadcast_to(self.cls_token, (bsz, -1, -1))
+        cls_token = cls_token.astype(x.dtype)
         x = ops.concat((cls_token, x), axis=1)
         
         if self.pos_embed is not None:

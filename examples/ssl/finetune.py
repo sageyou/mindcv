@@ -2,6 +2,10 @@
 import logging
 import os
 
+import sys
+mindcv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(mindcv_path)
+
 import mindspore as ms
 from mindspore import Tensor
 from mindspore.communication import get_group_size, get_rank, init

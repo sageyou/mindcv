@@ -226,6 +226,7 @@ class MAEForPretrain(VisionTransformerEncoder):
 
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
         cls_token = ops.broadcast_to(cls_token, (bsz, -1, -1))
+        cls_token = cls_token.astype(x.dtype)
         x = ops.concat((cls_token, x), axis=1)
 
         for blk in self.blocks:

@@ -2,6 +2,7 @@
 mode: 0
 distribute: True
 num_parallel_workers: 8
+val_while_train: True
 
 # dataset
 dataset: "imagenet"
@@ -18,7 +19,7 @@ ratio: [0.75, 1.333]
 hflip: 0.5
 interpolation: "bicubic"
 auto_augment: "randaug-m9-mstd0.5-inc1"
-reprob: 0.25
+re_prob: 0.25
 mixup: 0.8
 cutmix: 1.0
 re_value: "random"

@@ -22,9 +22,10 @@ Our reproduced model performance on ImageNet-1K is reported as follows.
 
 <div align="center">
 
-| Model     | Context  | Top-1 (%) | Top-5 (%) | Params (M) | Recipe                                                                                          | Download                                                                                 |
-|-----------|----------|-----------|-----------|------------|-------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| ResNeSt50 | D910x8-G | 80.81     | 95.16     | 27.55      | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnest/resnest50_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/resnest/resnest50-f2e7fc9c.ckpt) |
+| Model      | Context  | Top-1 (%) | Top-5 (%) | Params (M) | Recipe                                                                                           | Download                                                                                  |
+|------------|----------|-----------|-----------|------------|--------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
+| resnest50  | D910x8-G | 80.81     | 95.16     | 27.55      | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnest/resnest50_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/resnest/resnest50-f2e7fc9c.ckpt)  |
+| resnest101 | D910x8-G | 82.90     | 96.12     | 48.41      | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnest/resnest101_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/resnest/resnest101-7cc5c258.ckpt) |
 
 </div>
 
@@ -81,7 +82,7 @@ python validate.py -c configs/resnest/resnest50_ascend.yaml --data_dir /path/to/
 
 ### Deployment
 
-Please refer to the [deployment tutorial](https://github.com/mindspore-lab/mindcv/blob/main/tutorials/deployment.md) in MindCV.
+Please refer to the [deployment tutorial](https://mindspore-lab.github.io/mindcv/tutorials/deployment/) in MindCV.
 
 ## References
 

@@ -12,14 +12,15 @@ from mindspore import Parameter, Tensor
 from mindspore import dtype as mstype
 from mindspore import nn, numpy, ops
 
-from .layers import DropPath
+from .helpers import _ntuple, load_pretrained
+from .layers.compatibility import Dropout
+from .layers.drop_path import DropPath
 from .layers.mlp import Mlp
 from .registry import register_model
-from .utils import _ntuple, load_pretrained
 
 __all__ = [
     'XCiT',
-    'xcit_tiny_12_p16',
+    'xcit_tiny_12_p16_224',
 ]
 
 
@@ -34,7 +35,7 @@ def _cfg(url='', **kwargs):
 
 
 default_cfgs = {
-    'xcit_tiny_12_p16': _cfg(
+    'xcit_tiny_12_p16_224': _cfg(
         url='https://download.mindspore.cn/toolkits/mindcv/xcit/xcit_tiny_12_p16_224-1b1c9301.ckpt'),
 }
 
@@ -94,7 +95,7 @@ def conv3x3(in_planes, out_planes, stride=1):
         nn.Conv2d(
             in_planes, out_planes, kernel_size=3, stride=stride, padding=1, pad_mode='pad', has_bias=False
         ),
-        nn.BatchNorm2d(out_planes, use_batch_statistics=True)
+        nn.BatchNorm2d(out_planes)
     ])
 
 
@@ -165,7 +166,7 @@ class LPI(nn.Cell):
         self.conv1 = nn.Conv2d(in_features, out_features, kernel_size=kernel_size,
                                padding=padding, pad_mode='pad', group=out_features, has_bias=True)
         self.act = act_layer()
-        self.bn = nn.BatchNorm2d(in_features, use_batch_statistics=True)
+        self.bn = nn.BatchNorm2d(in_features)
         self.conv2 = nn.Conv2d(in_features, out_features, kernel_size=kernel_size,
                                padding=padding, pad_mode='pad', group=out_features, has_bias=True)
 
@@ -193,9 +194,9 @@ class ClassAttention(nn.Cell):
 
         self.qkv = nn.Dense(
             in_channels=dim, out_channels=dim * 3, has_bias=qkv_bias)
-        self.attn_drop = nn.Dropout(keep_prob=1 - attn_drop)
+        self.attn_drop = Dropout(p=attn_drop)
         self.proj = nn.Dense(in_channels=dim, out_channels=dim)
-        self.proj_drop = nn.Dropout(keep_prob=1 - proj_drop)
+        self.proj_drop = Dropout(p=proj_drop)
         self.softmax = nn.Softmax(axis=-1)
 
         self.attn_matmul_v = ops.BatchMatMul()
@@ -286,10 +287,10 @@ class XCA(nn.Cell):
             in_channels=dim, out_channels=dim * 3, has_bias=qkv_bias)
         self.q_matmul_k = ops.BatchMatMul(transpose_b=True)
         self.softmax = nn.Softmax(axis=-1)
-        self.attn_drop = nn.Dropout(keep_prob=1.0 - attn_drop)
+        self.attn_drop = Dropout(p=attn_drop)
         self.attn_matmul_v = ops.BatchMatMul()
         self.proj = nn.Dense(in_channels=dim, out_channels=dim)
-        self.proj_drop = nn.Dropout(keep_prob=1.0 - proj_drop)
+        self.proj_drop = Dropout(p=proj_drop)
 
     def construct(self, x):
         B, N, C = x.shape
@@ -407,7 +408,7 @@ class XCiT(nn.Cell):
 
         self.cls_token = Parameter(
             ops.zeros((1, 1, embed_dim), mstype.float32))
-        self.pos_drop = nn.Dropout(keep_prob=1.0 - drop_rate)
+        self.pos_drop = Dropout(p=drop_rate)
 
         dpr = [drop_path_rate for i in range(depth)]
         self.blocks = nn.CellList([
@@ -475,11 +476,11 @@ class XCiT(nn.Cell):
 
 
 @register_model
-def xcit_tiny_12_p16(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs) -> XCiT:
-    """Get xcit_tiny_12_p16 model.
+def xcit_tiny_12_p16_224(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs) -> XCiT:
+    """Get xcit_tiny_12_p16_224 model.
     Refer to the base class 'models.XCiT' for more details.
     """
-    default_cfg = default_cfgs['xcit_tiny_12_p16']
+    default_cfg = default_cfgs['xcit_tiny_12_p16_224']
     model = XCiT(
         patch_size=16, num_classes=num_classes, embed_dim=192, depth=12, num_heads=4, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, epsilon=1e-6), eta=1.0, tokens_norm=True, **kwargs)

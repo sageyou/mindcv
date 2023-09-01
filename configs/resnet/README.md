@@ -19,13 +19,13 @@ Our reproduced model performance on ImageNet-1K is reported as follows.
 
 <div align="center">
 
-| Model           | Context   | Top-1 (%) | Top-5 (%) |  Params (M) | Recipe  | Download                                                                           |
+| Model           | Context   | Top-1 (%) | Top-5 (%) |  Params (M) | Recipe                                                                                          | Download                                                                           |
 |-----------------|-----------|-----------|-----------|-------|-------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| ResNet18 | D910x8-G | 70.31     | 89.62     |  11.70   | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_18_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet18-1e65cd21.ckpt)  |
-| ResNet34 | D910x8-G | 74.15     | 91.98     | 21.81  | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_34_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet34-f297d27e.ckpt)  |
-| ResNet50 | D910x8-G | 76.69     | 93.50     | 25.61 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_50_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet50-e0733ab8.ckpt)  |
-| ResNet101 | D910x8-G | 78.24     | 94.09     |44.65 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_101_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet101-689c5e77.ckpt) |
-| ResNet152 | D910x8-G | 78.72     | 94.45     | 60.34| [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_152_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet152-beb689d8.ckpt) |
+| resnet18 | D910x8-G | 70.21     | 89.62     |  11.70   | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_18_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet18-1e65cd21.ckpt)  |
+| resnet34 | D910x8-G | 74.15     | 91.98     | 21.81  | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_34_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet34-f297d27e.ckpt)  |
+| resnet50 | D910x8-G | 76.69     | 93.50     | 25.61 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_50_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet50-e0733ab8.ckpt)  |
+| resnet101 | D910x8-G | 78.24     | 94.09     |44.65 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_101_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet101-689c5e77.ckpt) |
+| resnet152 | D910x8-G | 78.72     | 94.45     | 60.34| [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/resnet/resnet_152_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/resnet/resnet152-beb689d8.ckpt) |
 
 </div>
 
@@ -82,7 +82,7 @@ python validate.py -c configs/resnet/resnet_18_ascend.yaml --data_dir /path/to/i
 
 ### Deployment
 
-To deploy online inference services with the trained model efficiently, please refer to the [deployment tutorial](https://github.com/mindspore-lab/mindcv/blob/main/tutorials/deployment.md).
+To deploy online inference services with the trained model efficiently, please refer to the [deployment tutorial](https://mindspore-lab.github.io/mindcv/tutorials/deployment/).
 
 ## References
 

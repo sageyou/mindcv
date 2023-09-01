@@ -21,14 +21,16 @@ Middle: SqueezeNet with simple bypass; Right: SqueezeNet with complex bypass.
 
 ## Results
 
+Our reproduced model performance on ImageNet-1K is reported as follows.
+
 <div align="center">
 
-| Model          | Context | Top-1 (%) | Top-5 (%) | Params (M) | Recipe                                                                                               | Download                                                                                    |
-|----------------|---------|-----------|-----------|------------|------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| squeezenet_1.0 | D910x8-G | 59.01 | 81.01| 1.25 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/squeezenet/squeezenet_1.0_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/squeezenet/squeezenet1_0-e2d78c4a.ckpt) |
-| squeezenet_1.0 | GPUx8-G | 59.49 | 81.22 | 1.25 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/squeezenet/squeezenet_1.0_gpu.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/squeezenet/squeezenet_1.0_224.ckpt) |
-| squeezenet_1.1 | D910x8-G | 58.44 | 80.84 | 1.24 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/squeezenet/squeezenet_1.1_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/squeezenet/squeezenet1_1-da256d3a.ckpt) |
-| squeezenet_1.1 | GPUx8-G | 58.99 | 80.99 | 1.24 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/squeezenet/squeezenet_1.1_gpu.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/squeezenet/squeezenet_1.1_224.ckpt) |
+| Model         | Context | Top-1 (%) | Top-5 (%) | Params (M) | Recipe                                                                                                  | Download                                                                                    |
+|---------------|---------|-----------|-----------|------------|---------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
+| squeezenet1_0 | D910x8-G | 59.01     | 81.01     | 1.25 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/squeezenet/squeezenet_1.0_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/squeezenet/squeezenet1_0-e2d78c4a.ckpt) |
+| squeezenet1_0 | GPUx8-G | 58.83     | 81.08     | 1.25 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/squeezenet/squeezenet_1.0_gpu.yaml)    | [weights](https://download.mindspore.cn/toolkits/mindcv/squeezenet/squeezenet1_0_gpu-685f5941.ckpt) |
+| squeezenet1_1 | D910x8-G | 58.44     | 80.84     | 1.24 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/squeezenet/squeezenet_1.1_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/squeezenet/squeezenet1_1-da256d3a.ckpt) |
+| squeezenet1_1 | GPUx8-G | 59.18     | 81.41     | 1.24 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/squeezenet/squeezenet_1.1_gpu.yaml)    | [weights](https://download.mindspore.cn/toolkits/mindcv/squeezenet/squeezenet1_1_gpu-0e33234a.ckpt) |
 
 </div>
 
@@ -83,7 +85,7 @@ python validate.py -c configs/squeezenet/squeezenet_1.0_ascend.yaml --data_dir /
 
 ### Deployment
 
-To deploy online inference services with the trained model efficiently, please refer to the [deployment tutorial](https://github.com/mindspore-lab/mindcv/blob/main/tutorials/deployment.md).
+To deploy online inference services with the trained model efficiently, please refer to the [deployment tutorial](https://mindspore-lab.github.io/mindcv/tutorials/deployment/).
 
 
 ## References

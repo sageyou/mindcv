@@ -21,13 +21,15 @@ multi-scale information from, e.g., 3×3, 5×5, 7×7 convolutional kernels insid
 
 ## Results
 
+Our reproduced model performance on ImageNet-1K is reported as follows.
+
 <div align="center">
 
-| Model          | Context | Top-1 (%) | Top-5 (%) | Params (M) | Recipe                                                                                               | Download                                                                                    |
-|----------------|---------|-----------|-----------|------------|------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| skresnet18 | D910x8-G | 73.09 | 91.20 | 11.97 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/sknet/skresnet18_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/sknet/sknet18-868228e5.ckpt) |
-| skresnet34 | D910x8-G | 76.80 | 93.10 | 22.31 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/sknet/skresnet34_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/sknet/skresnet34-d668b629.ckpt) |
-| skresnet50_32x4d | D910x8-G | 79.08 | 94.60 | 37.31 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/sknet/skresnext50_32x4d_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/sknet/skresnext50_32x4d-395413a2.ckpt) |
+| Model             | Context | Top-1 (%) | Top-5 (%) | Params (M) | Recipe                                                                                               | Download                                                                                    |
+|-------------------|---------|-----------|-----------|------------|------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
+| skresnet18        | D910x8-G | 73.09     | 91.20 | 11.97 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/sknet/skresnet18_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/sknet/skresnet18-868228e5.ckpt) |
+| skresnet34        | D910x8-G | 76.71     | 93.10 | 22.31 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/sknet/skresnet34_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/sknet/skresnet34-d668b629.ckpt) |
+| skresnext50_32x4d | D910x8-G | 79.08     | 94.60 | 37.31 | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/sknet/skresnext50_32x4d_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/sknet/skresnext50_32x4d-395413a2.ckpt) |
 
 </div>
 
@@ -82,7 +84,7 @@ python validate.py -c configs/sknet/skresnext50_32x4d_ascend.yaml --data_dir /pa
 
 ### Deployment
 
-To deploy online inference services with the trained model efficiently, please refer to the [deployment tutorial](https://github.com/mindspore-lab/mindcv/blob/main/tutorials/deployment.md).
+To deploy online inference services with the trained model efficiently, please refer to the [deployment tutorial](https://mindspore-lab.github.io/mindcv/tutorials/deployment/).
 
 
 ## References

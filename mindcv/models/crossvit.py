@@ -13,17 +13,18 @@ from mindspore import Tensor
 from mindspore import dtype as mstype
 from mindspore.common.initializer import TruncatedNormal
 
+from .helpers import load_pretrained
+from .layers.compatibility import Dropout, Interpolate
 from .layers.drop_path import DropPath
 from .layers.helpers import to_2tuple
 from .layers.identity import Identity
 from .layers.mlp import Mlp
 from .registry import register_model
-from .utils import load_pretrained
 
 __all__ = [
-    "crossvit9",
-    "crossvit15",
-    "crossvit18",
+    "crossvit_9",
+    "crossvit_15",
+    "crossvit_18",
 ]
 
 
@@ -55,9 +56,9 @@ class Attention(nn.Cell):
         self.scale = head_dim ** -0.5
 
         self.qkv = nn.Dense(dim, dim * 3, has_bias=qkv_bias)
-        self.attn_drop = nn.Dropout(1.0 - attn_drop)
+        self.attn_drop = Dropout(p=attn_drop)
         self.proj = nn.Dense(dim, dim)
-        self.proj_drop = nn.Dropout(1.0 - proj_drop)
+        self.proj_drop = Dropout(p=proj_drop)
 
     def construct(self, x: Tensor) -> Tensor:
         B, N, C = x.shape
@@ -89,7 +90,7 @@ class Block(nn.Cell):
         self.norm1 = norm_layer((dim,))
         self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop)
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else ops.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else Identity()
         self.norm2 = norm_layer((dim,))
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, drop=drop)
@@ -157,9 +158,9 @@ class CrossAttention(nn.Cell):
         self.wq = nn.Dense(dim, dim, has_bias=qkv_bias)
         self.wk = nn.Dense(dim, dim, has_bias=qkv_bias)
         self.wv = nn.Dense(dim, dim, has_bias=qkv_bias)
-        self.attn_drop = nn.Dropout(1.0 - attn_drop)
+        self.attn_drop = Dropout(p=attn_drop)
         self.proj = nn.Dense(dim, dim)
-        self.proj_drop = nn.Dropout(1.0 - proj_drop)
+        self.proj_drop = Dropout(p=proj_drop)
 
     def construct(self, x: Tensor) -> Tensor:
         B, N, C = x.shape  # 3,3,16
@@ -325,6 +326,7 @@ class VisionTransformer(nn.Cell):
 
         num_patches = _compute_num_patches(img_size, patch_size)
         self.num_branches = len(patch_size)
+        self.interpolate = Interpolate(mode="bilinear", align_corners=True)
 
         patch_embed = []
         if hybrid_backbone is None:
@@ -346,7 +348,7 @@ class VisionTransformer(nn.Cell):
             d.append(c)
         d = tuple(d)
         self.cls_token = ms.ParameterTuple(d)
-        self.pos_drop = nn.Dropout(1.0 - drop_rate)
+        self.pos_drop = Dropout(p=drop_rate)
 
         total_depth = sum([sum(x[-2:]) for x in depth])
         dpr = np.linspace(0, drop_path_rate, total_depth)  # stochastic depth decay rule
@@ -403,8 +405,7 @@ class VisionTransformer(nn.Cell):
         xs = []
         # print(x)
         for i in range(self.num_branches):
-            x_ = ops.interpolate(x, sizes=(self.img_size[i], self.img_size[i]), mode='bilinear') if H != self.img_size[
-                i] else x
+            x_ = self.interpolate(x, size=(self.img_size[i], self.img_size[i])) if H != self.img_size[i] else x
             tmp = self.patch_embed[i](x_)
             z = self.cls_token[i].shape
             y = Tensor(np.ones((B, z[1], z[2])), dtype=mstype.float32)
@@ -451,7 +452,7 @@ class VisionTransformer(nn.Cell):
 
 
 @register_model
-def crossvit9(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs):
+def crossvit_9(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs):
     model = VisionTransformer(img_size=[240, 224],
                               patch_size=[12, 16], embed_dim=[128, 256], depth=[[1, 3, 0], [1, 3, 0], [1, 3, 0]],
                               num_heads=[4, 4], mlp_ratio=[3, 3, 1], qkv_bias=True,
@@ -463,7 +464,7 @@ def crossvit9(pretrained: bool = False, num_classes: int = 1000, in_channels=3, 
 
 
 @register_model
-def crossvit15(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs) -> VisionTransformer:
+def crossvit_15(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs) -> VisionTransformer:
     model = VisionTransformer(img_size=[240, 224],
                               patch_size=[12, 16], embed_dim=[192, 384], depth=[[1, 5, 0], [1, 5, 0], [1, 5, 0]],
                               num_heads=[6, 6], mlp_ratio=[3, 3, 1], qkv_bias=True,
@@ -475,7 +476,7 @@ def crossvit15(pretrained: bool = False, num_classes: int = 1000, in_channels=3,
 
 
 @register_model
-def crossvit18(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs) -> VisionTransformer:
+def crossvit_18(pretrained: bool = False, num_classes: int = 1000, in_channels=3, **kwargs) -> VisionTransformer:
     model = VisionTransformer(img_size=[240, 224],
                               patch_size=[12, 16], embed_dim=[224, 448], depth=[[1, 6, 0], [1, 6, 0], [1, 6, 0]],
                               num_heads=[7, 7], mlp_ratio=[3, 3, 1], qkv_bias=True,

@@ -86,9 +86,15 @@ def create_parser():
                        help='Image interpolation mode for resize operator(default="bilinear")')
     group.add_argument('--auto_augment', type=str, default=None,
                        help='AutoAugment policy. "randaug" for RandAugment, "autoaug" for original AutoAugment, '
-                            '"autoaugr" for AutoAugment with increasing posterize. '
+                            '"autoaugr" for AutoAugment with increasing posterize. and "3a" for AutoAugment with only 3'
+                            'transformations. '
+                            '"augmix" for AugmixAugment. '
+                            '"trivialaugwide" for TrivialAugmentWide. '
                             'If apply, recommend for imagenet: randaug-m7-mstd0.5 (default=None).'
                             'Example: "randaug-m10-n2-w0-mstd0.5-mmax10-inc0", "autoaug-mstd0.5" or autoaugr-mstd0.5.')
+    group.add_argument('--aug_splits', type=int, default=0,
+                       help='Number of augmentation splits (default: 0, valid: 3 (currently, only support 3 splits))'
+                       'it should be set with one auto_augment')
     group.add_argument('--re_prob', type=float, default=0.0,
                        help='Probability of performing erasing (default=0.0)')
     group.add_argument('--re_scale', type=tuple, default=(0.02, 0.33),
@@ -96,7 +102,8 @@ def create_parser():
     group.add_argument('--re_ratio', type=tuple, default=(0.3, 3.3),
                        help='Range of aspect ratio of the erased area (default=(0.3, 3.3))')
     group.add_argument('--re_value', default=0,
-                       help='Pixel value used to pad the erased area (default=0)')
+                       help='Pixel value used to pad the erased area (default=0),'
+                            'please refer to mindspore.dataset.vision.RandomErasing.')
     group.add_argument('--re_max_attempts', type=int, default=10,
                        help='The maximum number of attempts to propose a valid erased area, '
                             'beyond which the original image will be returned (default=10)')
@@ -160,6 +167,8 @@ def create_parser():
                        help='Whether use clip grad (default=False)')
     group.add_argument('--clip_value', type=float, default=15.0,
                        help='Clip value (default=15.0)')
+    group.add_argument('--gradient_accumulation_steps', type=int, default=1,
+                       help="Accumulate the gradients of n batches before update.")
 
     # Optimize parameters
     group = parser.add_argument_group('Optimizer parameters')
@@ -181,7 +190,8 @@ def create_parser():
     # Scheduler parameters
     group = parser.add_argument_group('Scheduler parameters')
     group.add_argument('--scheduler', type=str, default='cosine_decay',
-                       choices=['constant', 'cosine_decay', 'exponential_decay', 'step_decay', 'multi_step_decay'],
+                       choices=['constant', 'cosine_decay', 'exponential_decay', 'step_decay',
+                                'multi_step_decay', 'one_cycle', 'cyclic'],
                        help='Type of scheduler (default="cosine_decay")')
     group.add_argument('--lr', type=float, default=0.001,
                        help='Learning rate (default=0.001)')
@@ -203,7 +213,7 @@ def create_parser():
                             'LRs are the same in the remaining steps in the epoch. Otherwise, '
                             'learning rate is updated every step dynamically (default=False)')
     group.add_argument('--num_cycles', type=int, default=1,
-                       help='Num of cycles for cosine decay (default=1)')
+                       help='Num of cycles for cosine decay and cyclic (default=1)')
     group.add_argument('--cycle_decay', type=float, default=1.0,
                        help='Decay rate of lr max in each cosine cycle (default=1.0)')
 
@@ -225,6 +235,19 @@ def create_parser():
                             'Choice: O0 - all FP32, O1 - only cast ops in white-list to FP16, '
                             'O2 - cast all ops except for blacklist to FP16, '
                             'O3 - cast all ops to FP16. (default="O0").')
+    group.add_argument('--val_amp_level', type=str, default='O0',
+                       help='Amp level used in validation '
+                            'Choice: O0 - all FP32, O1 - only cast ops in white-list to FP16, '
+                            'O2 - cast all ops except for blacklist to FP16, '
+                            'O3 - cast all ops to FP16. (default="O0").')
+    group.add_argument('--amp_cast_list', type=str, default=None,
+                       help='At the cell level, customize the black-list or white-list to cast cells to '
+                            'FP16 based on the value of argument "amp_level". If None, use the built-in '
+                            'black-list and white-list. (default=None) '
+                            'If amp_level="O0" or "O3", this argument has no effect. '
+                            'If amp_level="O1", cast all cells in the white-list to FP16. '
+                            'If amp_level="O2", cast all cells except for the black-list to FP16. '
+                            'Example: "[nn.Conv1d, nn.Conv2d]" or "[nn.BatchNorm1d, nn.BatchNorm2d]".')
     group.add_argument('--loss_scale_type', type=str, default='fixed',
                        choices=['fixed', 'dynamic', 'auto'],
                        help='The type of loss scale (default="fixed")')

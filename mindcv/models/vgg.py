@@ -9,8 +9,9 @@ from typing import Dict, List, Union
 import mindspore.common.initializer as init
 from mindspore import Tensor, nn
 
+from .helpers import load_pretrained
+from .layers.compatibility import Dropout
 from .registry import register_model
-from .utils import load_pretrained
 
 __all__ = [
     "VGG",
@@ -32,10 +33,10 @@ def _cfg(url="", **kwargs):
 
 
 default_cfgs = {
-    "vgg11": _cfg(url="https://download.mindspore.cn/toolkits/mindcv/vgg/vgg11-59a09738.ckpt"),
-    "vgg13": _cfg(url="https://download.mindspore.cn/toolkits/mindcv/vgg/vgg13-d30c46b7.ckpt"),
-    "vgg16": _cfg(url="https://download.mindspore.cn/toolkits/mindcv/vgg/vgg16-22d7d708.ckpt"),
-    "vgg19": _cfg(url="https://download.mindspore.cn/toolkits/mindcv/vgg/vgg19-0c442461.ckpt"),
+    "vgg11": _cfg(url="https://download.mindspore.cn/toolkits/mindcv/vgg/vgg11-ef31d161.ckpt"),
+    "vgg13": _cfg(url="https://download.mindspore.cn/toolkits/mindcv/vgg/vgg13-da805e6e.ckpt"),
+    "vgg16": _cfg(url="https://download.mindspore.cn/toolkits/mindcv/vgg/vgg16-95697531.ckpt"),
+    "vgg19": _cfg(url="https://download.mindspore.cn/toolkits/mindcv/vgg/vgg19-bedee7b6.ckpt"),
 }
 
 
@@ -95,10 +96,10 @@ class VGG(nn.Cell):
         self.classifier = nn.SequentialCell([
             nn.Dense(512 * 7 * 7, 4096),
             nn.ReLU(),
-            nn.Dropout(keep_prob=1 - drop_rate),
+            Dropout(p=drop_rate),
             nn.Dense(4096, 4096),
             nn.ReLU(),
-            nn.Dropout(keep_prob=1 - drop_rate),
+            Dropout(p=drop_rate),
             nn.Dense(4096, num_classes),
         ])
         self._initialize_weights()

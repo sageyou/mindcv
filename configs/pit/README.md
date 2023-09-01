@@ -22,10 +22,10 @@ Our reproduced model performance on ImageNet-1K is reported as follows.
 
 | Model  | Context  | Top-1 (%) | Top-5 (%) | Params (M) | Recipe                                                                                   | Download                                                                          |
 |--------|----------|-----------|-----------|------------|------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
-| PiT_ti | D910x8-G | 72.96     | 91.33     | 4.85       | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/pit/pit_ti_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/pit/pit_ti-e647a593.ckpt) |
-| PiT_xs | D910x8-G | 78.41     | 94.06     | 10.61      | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/pit/pit_xs_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/pit/pit_xs-fea0d37e.ckpt) |
-| PiT_s  | D910x8-G | 80.56     | 94.80     | 23.46      | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/pit/pit_s_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/pit/pit_s-3c1ba36f.ckpt)  |
-| PiT_b  | D910x8-G | 81.87     | 95.04     | 73.76      | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/pit/pit_b_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/pit/pit_b-2411c9b6.ckpt)  |
+| pit_ti | D910x8-G | 72.96     | 91.33     | 4.85       | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/pit/pit_ti_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/pit/pit_ti-e647a593.ckpt) |
+| pit_xs | D910x8-G | 78.41     | 94.06     | 10.61      | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/pit/pit_xs_ascend.yaml) | [weights](https://download.mindspore.cn/toolkits/mindcv/pit/pit_xs-fea0d37e.ckpt) |
+| pit_s  | D910x8-G | 80.56     | 94.80     | 23.46      | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/pit/pit_s_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/pit/pit_s-3c1ba36f.ckpt)  |
+| pit_b  | D910x8-G | 81.87     | 95.04     | 73.76      | [yaml](https://github.com/mindspore-lab/mindcv/blob/main/configs/pit/pit_b_ascend.yaml)  | [weights](https://download.mindspore.cn/toolkits/mindcv/pit/pit_b-2411c9b6.ckpt)  |
 
 </div>
 
@@ -82,7 +82,7 @@ python validate.py -c configs/pit/pit_xs_ascend.yaml --data_dir /path/to/imagene
 
 ### Deployment
 
-Please refer to the [deployment tutorial](https://github.com/mindspore-lab/mindcv/blob/main/tutorials/deployment.md) in MindCV.
+Please refer to the [deployment tutorial](https://mindspore-lab.github.io/mindcv/tutorials/deployment/) in MindCV.
 
 ## References
 

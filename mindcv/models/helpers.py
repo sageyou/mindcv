@@ -1,6 +1,7 @@
 """
 Some utils while building models
 """
+import mindspore as ms
 import collections.abc
 import difflib
 import logging
@@ -147,6 +148,35 @@ def load_model_checkpoint(model: nn.Cell, checkpoint_path: str = "", ema: bool =
     if os.path.exists(checkpoint_path):
         checkpoint_param = load_checkpoint(checkpoint_path)
 
+        print("========analysis the params between old and nwe models=====================================")
+        param_name_model = []
+        unexpected = []
+
+        # unexpected in checkpoint but model no!
+        for n,p in model.parameters_and_names():
+            param_name_model.append(n)
+
+        for param_name in checkpoint_param:
+            if param_name not in param_name_model:
+                unexpected.append(param_name)
+        print("==================unexpected===========================")
+        print(unexpected)
+
+        missing = []
+
+        for n,p in model.parameters_and_names():
+            if n not in checkpoint_param:
+                missing.append(n)
+        print("===============misssing=======================================")
+        print(missing)
+        print("========================checkpoint_param===============================")
+        print(checkpoint_param)
+
+
+        
+        
+                
+
         if auto_mapping:
             checkpoint_param = auto_map(model, checkpoint_param)
 
@@ -198,3 +228,10 @@ def build_model_with_cfg(
             raise RuntimeError(f"`feature_only` is not implemented for `{model_cls.__name__}` model.") from e
 
     return model
+
+
+        
+
+            
+
+

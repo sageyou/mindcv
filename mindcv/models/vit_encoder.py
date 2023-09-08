@@ -196,7 +196,7 @@ class VisionTransformerEncoder(nn.Cell):
         **kwargs
     ):
         super(VisionTransformerEncoder, self).__init__()
-        self.embed_dim = embed_dim
+        self.embed_dim = embed_dim # todo: 没啥用
         self.patch_embed = PatchEmbed(image_size=img_size, patch_size=patch_size,
                                       in_chans=in_chans, embed_dim=embed_dim)
         self.num_patches = self.patch_embed.num_patches

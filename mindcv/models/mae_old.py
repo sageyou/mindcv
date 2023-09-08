@@ -12,10 +12,10 @@ from .registry import register_model
 from .vit_encoder import Block, VisionTransformerEncoder
 
 __all__ = [
-    "mae_b_16_224_pretrain",
+    "mae_b_16_224_pretrain_old",
     "mae_l_16_224_pretrain",
     "mae_h_16_224_pretrain",
-    "mae_b_16_224_finetune",
+    "mae_b_16_224_finetune_old",
     "mae_l_16_224_finetune",
     "mae_h_14_224_finetune"
 ]
@@ -358,7 +358,7 @@ class MAEForFinetune(VisionTransformerEncoder):
 
 
 @register_model
-def mae_b_16_224_pretrain(pretrained=False, **kwargs):
+def mae_b_16_224_pretrain_old(pretrained=False, **kwargs):
     model = MAEForPretrain(
         patch_size=16, embed_dim=768, depth=12, num_heads=12,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
@@ -397,7 +397,7 @@ def mae_h_16_224_pretrain(pretrained=False, **kwargs):
 
 
 @register_model
-def mae_b_16_224_finetune(pretrained=True, in_chans=3, num_classes=1000, **kwargs):
+def mae_b_16_224_finetune_old(pretrained=True, in_chans=3, num_classes=1000, **kwargs):
     default_cfg = default_cfgs["mae_b_16_224_finetune"]
     model = MAEForFinetune(
         patch_size=16, in_chans=in_chans, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4,

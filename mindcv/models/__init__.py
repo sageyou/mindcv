@@ -18,7 +18,8 @@ from . import (
     inceptionv3,
     inceptionv4,
     layers,
-    mae,
+    mae_new,
+    mae_old,
     mixnet,
     mlpmixer,
     mnasnet,
@@ -52,6 +53,7 @@ from . import (
     vgg,
     visformer,
     vit,
+    vit_new,
     volo,
     xception,
     xcit,
@@ -75,7 +77,8 @@ from .hrnet import *
 from .inceptionv3 import *
 from .inceptionv4 import *
 from .layers import *
-from .mae import *
+from .mae_new import *
+from .mae_old import *
 from .mixnet import *
 from .mlpmixer import *
 from .mnasnet import *
@@ -109,6 +112,7 @@ from .swintransformerv2 import *
 from .vgg import *
 from .visformer import *
 from .vit import *
+from .vit_new import *
 from .volo import *
 from .xception import *
 from .xcit import *
@@ -134,7 +138,8 @@ __all__.extend(hrnet.__all__)
 __all__.extend(["InceptionV3", "inception_v3"])
 __all__.extend(["InceptionV4", "inception_v4"])
 __all__.extend(layers.__all__)
-__all__.extend(mae.__all__)
+__all__.extend(mae_new.__all__)
+__all__.extend(mae_old.__all__)
 __all__.extend(mixnet.__all__)
 __all__.extend(mlpmixer.__all__)
 __all__.extend(mnasnet.__all__)
@@ -168,6 +173,7 @@ __all__.extend(swintransformerv2.__all__)
 __all__.extend(vgg.__all__)
 __all__.extend(visformer.__all__)
 __all__.extend(vit.__all__)
+__all__.extend(vit_new.__all__)
 __all__.extend(volo.__all__)
 __all__.extend(["Xception", "xception"])
 __all__.extend(xcit.__all__)

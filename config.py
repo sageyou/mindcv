@@ -94,7 +94,7 @@ def create_parser():
                             'Example: "randaug-m10-n2-w0-mstd0.5-mmax10-inc0", "autoaug-mstd0.5" or autoaugr-mstd0.5.')
     group.add_argument('--aug_splits', type=int, default=0,
                        help='Number of augmentation splits (default: 0, valid: 3 (currently, only support 3 splits))'
-                       'it should be set with one auto_augment')
+                            'it should be set with one auto_augment')
     group.add_argument('--re_prob', type=float, default=0.0,
                        help='Probability of performing erasing (default=0.0)')
     group.add_argument('--re_scale', type=tuple, default=(0.02, 0.33),
@@ -216,10 +216,12 @@ def create_parser():
                        help='Num of cycles for cosine decay and cyclic (default=1)')
     group.add_argument('--cycle_decay', type=float, default=1.0,
                        help='Decay rate of lr max in each cosine cycle (default=1.0)')
+    group.add_argument('--layer_decay', type=float, default=None,
+                       help='layer(model) decay rate of lr (default=None)')
 
     # Loss parameters
     group = parser.add_argument_group('Loss parameters')
-    group.add_argument('--loss', type=str, default='CE', choices=['BCE', 'CE'],
+    group.add_argument('--loss', type=str, default='CE', choices=['BCE', 'CE', 'None'],
                        help='Type of loss, BCE (BinaryCrossEntropy) or CE (CrossEntropy)  (default="CE")')
     group.add_argument('--label_smoothing', type=float, default=0.0,
                        help='Use label smoothing (default=0.0)')
@@ -256,7 +258,28 @@ def create_parser():
     group.add_argument('--drop_overflow_update', type=bool, default=False,
                        help='Whether to execute optimizer if there is an overflow (default=False)')
 
+    # pre-train
+    group = parser.add_argument_group('pre-train')
+    group.add_argument('--pretrain_resize', type=list, default=[224],
+                       help='Crop the size of the image for pre-training.'
+                            'The length of list should be 2 if tokenizer is required. (default=[224])')
+    group.add_argument('--pretrain_interpolations', type=list, default=['bicubic', 'bilinear'],
+                       help='Image interpolation mode for resize operator for pre-trainin')
+    group.add_argument('--tokenizer', type=str, default=None,
+                       help='Name of tokenizer model for pre-train')
+    group.add_argument('--tokenizer_ckpt_path', type=str, default='',
+                       help='Initialize tokenizer model from this checkpoint')
+    group.add_argument('--mask_type', type=str, default='random',
+                       choices=['block_wise', 'patch_aligned', 'random'],
+                       help='Type of mask generator')
+    group.add_argument('--mask_ratio', type=float, default=0.75,
+                       help='Masking ratio')
+    group.add_argument('--mask_patch_size', type=int, default=32,
+                       help='Size of mask patch')
+
     return parser_config, parser
+
+
 # fmt: on
 
 

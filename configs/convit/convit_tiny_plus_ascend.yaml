@@ -50,5 +50,5 @@ decay_epochs: 260
 opt: 'adamw'
 weight_decay: 0.0001
 loss_scale: 1024
-filter_bias_and_bn: True
+weight_decay_filter: 'disable'
 use_nesterov: False

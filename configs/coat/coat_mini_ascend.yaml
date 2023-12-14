@@ -55,7 +55,7 @@ epoch_size: 300
 # optimizer
 opt: 'lion'
 weight_decay: 0.15
-filter_bias_and_bn: True
+weight_decay_filter: 'disable'
 loss_scale: 4096
 use_nesterov: False
 loss_scale_type: dynamic

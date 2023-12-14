@@ -182,8 +182,12 @@ def create_parser():
                        help='Weight decay (default=1e-6)')
     group.add_argument('--use_nesterov', type=str2bool, nargs='?', const=True, default=False,
                        help='Enables the Nesterov momentum (default=False)')
-    group.add_argument('--filter_bias_and_bn', type=str2bool, nargs='?', const=True, default=True,
-                       help='Filter Bias and BatchNorm (default=True)')
+    group.add_argument('--weight_decay_filter', type=str, default="disable",
+                       choices=['disable', 'auto', 'bn_and_bias'],
+                       help='filter params from weight_decay'
+                            '"disable": no params to filter from weight_decay'
+                            '"auto": filter BatchNorm from weight_decay'
+                            '"bn_and_bias": filter BatchNorm and Bias from weight_decay')
     group.add_argument('--eps', type=float, default=1e-10,
                        help='Term Added to the Denominator to Improve Numerical Stability (default=1e-10)')
 

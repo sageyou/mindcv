@@ -210,7 +210,7 @@ def main():
     else:
         optimizer_loss_scale = 1.0
     optimizer = create_optimizer(
-        network.trainable_params(),
+        network,
         opt=args.opt,
         lr=lr_scheduler,
         weight_decay=args.weight_decay,

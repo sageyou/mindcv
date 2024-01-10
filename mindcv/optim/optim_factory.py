@@ -1,7 +1,11 @@
 """ optim factory """
+import collections
+import logging
 import os
-from functools import partial
-from typing import Optional
+import re
+from collections import defaultdict
+from itertools import chain, islice
+from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Union
 
 from mindspore import load_checkpoint, load_param_into_net, nn
 
@@ -10,33 +14,188 @@ from .adan import Adan
 from .lion import Lion
 from .nadam import NAdam
 
-__all__ = ["create_optimizer", "create_pretrain_optimizer", "create_finetune_optimizer"]
+__all__ = ["create_optimizer"]
+
+_logger = logging.getLogger(__name__)
 
 
-def init_group_params(params, weight_decay):
+def init_group_params(params, weight_decay, weight_decay_filter, no_weight_decay):
+    if weight_decay_filter == "disable":
+        return [
+            {"params": params, "weight_decay": weight_decay},
+            {"order_params": params},
+        ]
+
     decay_params = []
     no_decay_params = []
-
+    no_weight_decay = set(no_weight_decay)
     for param in params:
-        if "beta" not in param.name and "gamma" not in param.name and "bias" not in param.name:
-            decay_params.append(param)
-        else:
+        if "beta" in param.name or "gamma" in param.name or "bias" in param.name or param.name in no_weight_decay:
             no_decay_params.append(param)
+        else:
+            decay_params.append(param)
     return [
         {"params": decay_params, "weight_decay": weight_decay},
-        {"params": no_decay_params},
+        {"params": no_decay_params, "weight_decay": 0.0},
         {"order_params": params},
     ]
 
 
+def param_groups_layer_decay(
+    model: nn.Cell,
+    lr: Optional[float] = 1e-3,
+    weight_decay: float = 0.05,
+    no_weight_decay_list: Tuple[str] = (),
+    layer_decay: float = 0.75,
+):
+    """
+    Parameter groups for layer-wise lr decay & weight decay
+    """
+    no_weight_decay_list = set(no_weight_decay_list)
+    param_group_names = {}  # NOTE for debugging
+    param_groups = {}
+    if hasattr(model, "group_matcher"):
+        layer_map = group_with_matcher(model.trainable_params(), model.group_matcher(), reverse=True)
+    else:
+        layer_map = _layer_map(model)
+
+    num_layers = max(layer_map.values()) + 1
+    layer_max = num_layers - 1
+    layer_scales = list(layer_decay ** (layer_max - i) for i in range(num_layers))
+
+    for name, param in model.parameters_and_names():
+        if not param.requires_grad:
+            continue
+
+        # no decay: all 1D parameters and model specific ones
+        if param.ndim == 1 or name in no_weight_decay_list:
+            g_decay = "no_decay"
+            this_decay = 0.0
+        else:
+            g_decay = "decay"
+            this_decay = weight_decay
+
+        layer_id = layer_map.get(name, layer_max)
+        group_name = "layer_%d_%s" % (layer_id, g_decay)
+
+        if group_name not in param_groups:
+            this_scale = layer_scales[layer_id]
+            param_group_names[group_name] = {
+                "lr": [learning_rate * this_scale for learning_rate in lr],
+                "weight_decay": this_decay,
+                "param_names": [],
+            }
+            param_groups[group_name] = {
+                "lr": [learning_rate * this_scale for learning_rate in lr],
+                "weight_decay": this_decay,
+                "params": [],
+            }
+
+        param_group_names[group_name]["param_names"].append(name)
+        param_groups[group_name]["params"].append(param)
+
+    return list(param_groups.values())
+
+
+MATCH_PREV_GROUP = (99999,)
+
+
+def group_with_matcher(
+    named_objects: Iterator[Tuple[str, Any]], group_matcher: Union[Dict, Callable], reverse: bool = False
+):
+    if isinstance(group_matcher, dict):
+        # dictionary matcher contains a dict of raw-string regex expr that must be compiled
+        compiled = []
+        for group_ordinal, (_, mspec) in enumerate(group_matcher.items()):
+            if mspec is None:
+                continue
+            # map all matching specifications into 3-tuple (compiled re, prefix, suffix)
+            if isinstance(mspec, (tuple, list)):
+                # multi-entry match specifications require each sub-spec to be a 2-tuple (re, suffix)
+                for sspec in mspec:
+                    compiled += [(re.compile(sspec[0]), (group_ordinal,), sspec[1])]
+            else:
+                compiled += [(re.compile(mspec), (group_ordinal,), None)]
+        group_matcher = compiled
+
+    def _get_grouping(name):
+        if isinstance(group_matcher, (list, tuple)):
+            for match_fn, prefix, suffix in group_matcher:
+                r = match_fn.match(name)
+                if r:
+                    parts = (prefix, r.groups(), suffix)
+                    # map all tuple elem to int for numeric sort, filter out None entries
+                    return tuple(map(float, chain.from_iterable(filter(None, parts))))
+            return (float("inf"),)  # un-matched layers (neck, head) mapped to largest ordinal
+        else:
+            ord = group_matcher(name)
+            if not isinstance(ord, collections.abc.Iterable):
+                return (ord,)
+            return tuple(ord)
+
+    grouping = defaultdict(list)
+    for param in named_objects:
+        grouping[_get_grouping(param.name)].append(param.name)
+    # remap to integers
+    layer_id_to_param = defaultdict(list)
+    lid = -1
+    for k in sorted(filter(lambda x: x is not None, grouping.keys())):
+        if lid < 0 or k[-1] != MATCH_PREV_GROUP[0]:
+            lid += 1
+        layer_id_to_param[lid].extend(grouping[k])
+
+    if reverse:
+        # output reverse mapping
+        param_to_layer_id = {}
+        for lid, lm in layer_id_to_param.items():
+            for n in lm:
+                param_to_layer_id[n] = lid
+        return param_to_layer_id
+
+    return layer_id_to_param
+
+
+def _group(it, size):
+    it = iter(it)
+    return iter(lambda: tuple(islice(it, size)), ())
+
+
+def _layer_map(model, layers_per_group=12, num_groups=None):
+    def _in_head(n, hp):
+        if not hp:
+            return True
+        elif isinstance(hp, (tuple, list)):
+            return any([n.startswith(hpi) for hpi in hp])
+        else:
+            return n.startswith(hp)
+
+    # attention: need to add pretrained_cfg attr to model
+    head_prefix = getattr(model, "pretrained_cfg", {}).get("classifier", None)
+    names_trunk = []
+    names_head = []
+    for n, _ in model.parameters_and_names():
+        names_head.append(n) if _in_head(n, head_prefix) else names_trunk.append(n)
+
+    # group non-head layers
+    num_trunk_layers = len(names_trunk)
+    if num_groups is not None:
+        layers_per_group = -(num_trunk_layers // -num_groups)
+    names_trunk = list(_group(names_trunk, layers_per_group))
+    num_trunk_groups = len(names_trunk)
+    layer_map = {n: i for i, l in enumerate(names_trunk) for n in l}
+    layer_map.update({n: num_trunk_groups for n in names_head})
+    return layer_map
+
+
 def create_optimizer(
-    params,
+    model_or_params,
     opt: str = "adam",
     lr: Optional[float] = 1e-3,
     weight_decay: float = 0,
     momentum: float = 0.9,
     nesterov: bool = False,
-    filter_bias_and_bn: bool = True,
+    weight_decay_filter: str = "disable",
+    layer_decay: Optional[float] = None,
     loss_scale: float = 1.0,
     schedule_decay: float = 4e-3,
     checkpoint_path: str = "",
@@ -60,236 +219,55 @@ def create_optimizer(
             of current step. Default: 0.
         momentum: momentum if the optimizer supports. Default: 0.9.
         nesterov: Whether to use Nesterov Accelerated Gradient (NAG) algorithm to update the gradients. Default: False.
-        filter_bias_and_bn: whether to filter batch norm parameters and bias from weight decay.
-            If True, weight decay will not apply on BN parameters and bias in Conv or Dense layers. Default: True.
+        weight_decay_filter: filters to filter parameters from weight_decay.
+            - "disable": No parameters to filter.
+            - "auto": We do not apply weight decay filtering to any parameters. However, MindSpore currently
+                    automatically filters the parameters of Norm layer from weight decay.
+            - "norm_and_bias": Filter the paramters of Norm layer and Bias from weight decay.
         loss_scale: A floating point value for the loss scale, which must be larger than 0.0. Default: 1.0.
 
     Returns:
         Optimizer object
     """
 
-    opt = opt.lower()
+    no_weight_decay = {}
+    if isinstance(model_or_params, nn.Cell):
+        # a model was passed in, extract parameters and add weight decays to appropriate layers
+        if hasattr(model_or_params, "no_weight_decay"):
+            no_weight_decay = model_or_params.no_weight_decay()
+        params = model_or_params.trainable_params()
 
-    if weight_decay and filter_bias_and_bn:
-        params = init_group_params(params, weight_decay)
+    else:
+        params = model_or_params
 
-    opt_args = dict(**kwargs)
-    # if lr is not None:
-    #    opt_args.setdefault('lr', lr)
-
-    optimizer = get_optimizer(
-        params, opt_args, opt, lr, weight_decay, momentum, nesterov, loss_scale, schedule_decay, checkpoint_path, eps
-    )
-
-    return optimizer
-
-
-def get_pretrain_param_groups(model, weight_decay, skip, skip_keywords):
-    """get pretrain param groups"""
-    has_decay, has_decay_name = [], []
-    no_decay, no_decay_name = [], []
-
-    for param in model.trainable_params():
-        if (
-            len(param.shape) == 1
-            or param.name.endswith(".bias")
-            or (param.name in skip)
-            or check_keywords_in_name(param.name, skip_keywords)
-        ):
-            no_decay.append(param)
-            no_decay_name.append(param.name)
-        else:
-            has_decay.append(param)
-            has_decay_name.append(param.name)
-
-    return [
-        {"params": has_decay, "weight_decay": weight_decay},
-        {"params": no_decay, "weight_decay": 0.0},
-        {"order_params": model.trainable_params()},
-    ]
-
-
-def create_pretrain_optimizer(
-    model,
-    opt: str = "adam",
-    lr: Optional[float] = 1e-3,
-    weight_decay: float = 0,
-    momentum: float = 0.9,
-    nesterov: bool = False,
-    filter_bias_and_bn: bool = True,
-    loss_scale: float = 1.0,
-    schedule_decay: float = 4e-3,
-    checkpoint_path: str = "",
-    eps: float = 1e-10,
-    **kwargs,
-):
-    """build pretrain optimizer"""
+    if weight_decay_filter == "auto":
+        _logger.warning(
+            "You are using AUTO weight decay filter, which means the weight decay filter isn't explicitly pass in "
+            "when creating an mindspore.nn.Optimizer instance. "
+            "NOTE: mindspore.nn.Optimizer will filter Norm parmas from weight decay. "
+        )
+    elif layer_decay is not None and isinstance(model_or_params, nn.Cell):
+        params = param_groups_layer_decay(
+            model_or_params,
+            lr=lr,
+            weight_decay=weight_decay,
+            layer_decay=layer_decay,
+            no_weight_decay_list=no_weight_decay,
+        )
+        weight_decay = 0.0
+    elif weight_decay_filter == "disable" or "norm_and_bias":
+        params = init_group_params(params, weight_decay, weight_decay_filter, no_weight_decay)
+        weight_decay = 0.0
+    else:
+        raise ValueError(
+            f"weight decay filter only support ['disable', 'auto', 'norm_and_bias'], but got{weight_decay_filter}."
+        )
 
     opt = opt.lower()
-
-    skip = {}
-    skip_keywords = {}
-    if hasattr(model, "no_weight_decay"):
-        skip = model.no_weight_decay()
-    if hasattr(model, "no_weight_decay_keywords"):
-        skip_keywords = model.no_weight_decay_keywords()
-
-    params = get_pretrain_param_groups(model, weight_decay, skip, skip_keywords)
-
     opt_args = dict(**kwargs)
     # if lr is not None:
     #    opt_args.setdefault('lr', lr)
 
-    optimizer = get_optimizer(
-        params, opt_args, opt, lr, weight_decay, momentum, nesterov, loss_scale, schedule_decay, checkpoint_path, eps
-    )
-
-    return optimizer
-
-
-def get_vit_layer(name, num_layers):
-    if name in ("cls_token", "mask_token", "pos_embed"):
-        return 0
-    elif name.startswith("patch_embed"):
-        return 0
-    elif name.startswith("rel_pos_bias"):
-        return num_layers - 1
-    elif name.startswith("blocks"):
-        layer_id = int(name.split(".")[1])
-        return layer_id + 1
-    else:
-        return num_layers - 1
-
-
-def get_swin_layer(name, num_layers, depths):
-    if name in ("mask_token",):
-        return 0
-    elif name.startswith("patch_embed"):
-        return 0
-    elif name.startswith("layers"):
-        layer_id = int(name.split(".")[1])
-        block_id = name.split(".")[3]
-        if block_id == "reduction" or block_id == "norm":
-            return sum(depths[: layer_id + 1])
-        layer_id = sum(depths[:layer_id]) + int(block_id)
-        return layer_id + 1
-    else:
-        return num_layers - 1
-
-
-def get_finetune_param_groups(
-    model,
-    lr,
-    weight_decay,
-    get_layer_func,
-    scales,
-    skip,
-    skip_keywords,
-):
-    parameter_group_names = {}
-    parameter_group_vars = {}
-
-    for param in model.trainable_params():
-        if (
-            len(param.shape) == 1
-            or param.name.endswith(".bias")
-            or (param.name in skip)
-            or check_keywords_in_name(param.name, skip_keywords)
-        ):
-            group_name = "no_decay"
-            this_weight_decay = 0.0
-        else:
-            group_name = "decay"
-            this_weight_decay = weight_decay
-        if get_layer_func is not None:
-            layer_id = get_layer_func(param.name)
-            group_name = "layer_%d_%s" % (layer_id, group_name)
-        else:
-            layer_id = None
-
-        if group_name not in parameter_group_names:
-            if scales is not None:
-                scale = scales[layer_id]
-            else:
-                scale = 1.0
-
-            parameter_group_names[group_name] = {
-                "weight_decay": this_weight_decay,
-                "params": [],
-                "lr": [learning_rate * scale for learning_rate in lr],
-            }
-            parameter_group_vars[group_name] = {
-                "weight_decay": this_weight_decay,
-                "params": [],
-                "lr": [learning_rate * scale for learning_rate in lr],
-            }
-
-        parameter_group_vars[group_name]["params"].append(param)
-        parameter_group_names[group_name]["params"].append(param.name)
-
-    return list(parameter_group_vars.values())
-
-
-def create_finetune_optimizer(
-    model,
-    opt: str = "adam",
-    lr: Optional[float] = 1e-3,
-    weight_decay: float = 0,
-    momentum: float = 0.9,
-    nesterov: bool = False,
-    filter_bias_and_bn: bool = True,
-    loss_scale: float = 1.0,
-    schedule_decay: float = 4e-3,
-    checkpoint_path: str = "",
-    eps: float = 1e-10,
-    scale: float = 0.75,
-    **kwargs,
-):
-    if hasattr(model, "get_depths"):
-        depths = model.get_depths()
-        num_layers = model.get_num_layers()
-        get_layer_func = partial(get_swin_layer, num_layers=num_layers + 2, depths=depths)
-    elif hasattr(model, "get_num_layers"):
-        num_layers = model.get_num_layers()
-        get_layer_func = partial(get_vit_layer, num_layers=num_layers + 2)
-    else:
-        raise NotImplementedError()
-
-    scales = list(scale**i for i in reversed(range(num_layers + 2)))
-
-    skip = {}
-    skip_keywords = {}
-    if hasattr(model, "no_weight_decay"):
-        skip = model.no_weight_decay()
-    if hasattr(model, "no_weight_decay_keywords"):
-        skip_keywords = model.no_weight_decay_keywords()
-
-    params = get_finetune_param_groups(model, lr, weight_decay, get_layer_func, scales, skip, skip_keywords)
-
-    opt_args = dict(**kwargs)
-    # if lr is not None:
-    #    opt_args.setdefault('lr', lr)
-
-    optimizer = get_optimizer(
-        params, opt_args, opt, lr, weight_decay, momentum, nesterov, loss_scale, schedule_decay, checkpoint_path, eps
-    )
-
-    return optimizer
-
-
-def get_optimizer(
-    params,
-    opt_args,
-    opt: str = "adam",
-    lr: Optional[float] = 1e-3,
-    weight_decay: float = 0,
-    momentum: float = 0.9,
-    nesterov: bool = False,
-    loss_scale: float = 1.0,
-    schedule_decay: float = 4e-3,
-    checkpoint_path: str = "",
-    eps: float = 1e-10,
-):
     # non-adaptive: SGD, momentum, and nesterov
     if opt == "sgd":
         # note: nn.Momentum may perform better if momentum > 0.
@@ -388,11 +366,3 @@ def get_optimizer(
         load_param_into_net(optimizer, param_dict)
 
     return optimizer
-
-
-def check_keywords_in_name(name, keywords=()):
-    isin = False
-    for keyword in keywords:
-        if keyword in name:
-            isin = True
-    return isin

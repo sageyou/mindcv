@@ -299,9 +299,6 @@ class MAEForPretrain(nn.Cell):
         loss = self.forward_loss(imgs, pred, mask)
         return loss
 
-    def get_num_layers(self):
-        return len(self.blocks)
-
     def no_weight_decay(self):
         return {'pos_embed', 'cls_token'}
 

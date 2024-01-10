@@ -329,6 +329,12 @@ class VisionTransformer(nn.Cell):
     def no_weight_decay(self):
         return {'pos_embed', 'cls_token'}
 
+    def group_matcher(self,):
+        return dict(
+            stem=r'^cls_token|pos_embed|patch_embed',  # stem and embed
+            blocks=[(r'^blocks\.(\d+)', None),]
+        )
+
     def _init_weights(self):
         w = self.patch_embed.proj.weight
         w_shape_flatted = (w.shape[0], functools.reduce(lambda x, y: x*y, w.shape[1:]))

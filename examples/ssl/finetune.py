@@ -13,7 +13,7 @@ from mindspore.communication import get_group_size, get_rank, init
 from mindcv.data import create_dataset, create_loader, create_transforms
 from mindcv.loss import create_loss
 from mindcv.models import create_model
-from mindcv.optim import create_finetune_optimizer
+from mindcv.optim import create_optimizer
 from mindcv.scheduler import create_scheduler
 from mindcv.utils import (
     AllReduceSum,
@@ -211,18 +211,18 @@ def main():
         optimizer_loss_scale = args.loss_scale
     else:
         optimizer_loss_scale = 1.0
-    optimizer = create_finetune_optimizer(
+    optimizer = create_optimizer(
         network,
         opt=args.opt,
         lr=lr_scheduler,
         weight_decay=args.weight_decay,
         momentum=args.momentum,
         nesterov=args.use_nesterov,
-        filter_bias_and_bn=args.filter_bias_and_bn,
+        weight_decay_filter=args.weight_decay_filter,
+        layer_decay = args.layer_decay,
         loss_scale=optimizer_loss_scale,
         checkpoint_path=opt_ckpt_path,
         eps=args.eps,
-        scale=args.layer_decay,
     )
 
     # Define eval metrics.
